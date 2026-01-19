@@ -197,8 +197,9 @@ if (ob_get_level() === 0) {
           <?php endif; ?>
           <li class="nav-item ms-2"><a class="nav-link logout-link" href="/SCP/auth/logout.php">Logout</a></li>
         <?php else: ?>
+          <li class="nav-item"><a class="nav-link" href="/SCP/products/products.php">Products</a></li>
           <li class="nav-item"><a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#loginModal">Login</a></li>
-          <li class="nav-item"><a class="btn btn-primary btn-sm" href="#" data-bs-toggle="modal" data-bs-target="#registerModal">Register</a></li>
+          <li class="nav-item"><a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#registerModal">Register</a></li>
         <?php endif; ?>
       </ul>
     </div>

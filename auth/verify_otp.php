@@ -20,7 +20,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     $stmt2->bind_param("i", $user_id);
                     $stmt2->execute();
                     $stmt2->close();
-                    echo "<p class='text-muted'>OTP verified! You can now <a href='/SCP/index.php'>login</a>.</p>";
+                    echo "<p class='text-muted'>OTP verified! You can now <a href='/SCP/index.php'>continue shopping</a>.</p>";
                 } else {
                     echo "<p class='text-muted'>Invalid or expired OTP.</p>";
                 }
