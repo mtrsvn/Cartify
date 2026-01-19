@@ -41,8 +41,8 @@ function send_otp_email(string $toEmail, string $toName, string $otp): array {
             $pass   = getenv('SMTP_PASS') ?: (getenv('MAILTRAP_PASS') ?: '');
             $port   = (int)(getenv('SMTP_PORT') ?: 2525);
             $secure = getenv('SMTP_SECURE') ?: '';
-            $from   = getenv('SMTP_FROM') ?: 'no-reply@scp.local';
-            $fromName = getenv('SMTP_FROM_NAME') ?: 'SCP';
+            $from   = getenv('SMTP_FROM') ?: 'no-reply@cartify.local';
+            $fromName = getenv('SMTP_FROM_NAME') ?: 'Cartify';
 
             $fileCfgPath = __DIR__ . '/smtp_creds.php';
             if (file_exists($fileCfgPath)) {
@@ -91,7 +91,7 @@ function send_otp_email(string $toEmail, string $toName, string $otp): array {
             $mail->addAddress($toEmail, $toName ?: $toEmail);
 
             $mail->isHTML(true);
-            $mail->Subject = 'Your OTP Code - SCP';
+            $mail->Subject = 'Your OTP Code - Cartify';
             $mail->Body    = "<p>Hello <strong>{$toName}</strong>,</p><p>Your verification code is: <strong style='font-size:1.5em;'>{$otp}</strong></p><p>This code will expire in 10 minutes.</p><p>If you did not request this code, please ignore this email.</p>";
             $mail->AltBody = "Hello {$toName},\n\nYour verification code is: {$otp}\n\nThis code will expire in 10 minutes.";
 
@@ -105,15 +105,15 @@ function send_otp_email(string $toEmail, string $toName, string $otp): array {
     }
     
     $to = $toEmail;
-    $subject = 'Your OTP Code - SCP';
+    $subject = 'Your OTP Code - Cartify';
     $message = "Hello {$toName},\n\n";
     $message .= "Your verification code is: {$otp}\n\n";
     $message .= "This code will expire in 10 minutes.\n\n";
     $message .= "If you did not request this code, please ignore this email.\n\n";
-    $message .= "Best regards,\nSCP Team";
+    $message .= "Best regards,\nCartify Team";
     
-    $headers = "From: SCP <no-reply@scp.local>\r\n";
-    $headers .= "Reply-To: no-reply@scp.local\r\n";
+    $headers = "From: Cartify <no-reply@cartify.local>\r\n";
+    $headers .= "Reply-To: no-reply@cartify.local\r\n";
     $headers .= "Content-Type: text/plain; charset=UTF-8\r\n";
     $headers .= "X-Mailer: PHP/" . phpversion();
     

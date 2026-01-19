@@ -11,7 +11,8 @@ if (ob_get_level() === 0) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>My Website</title>
+    <title>Cartify</title>
+      <!-- Brand updated to Cartify -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
   <style>
@@ -35,9 +36,23 @@ if (ob_get_level() === 0) {
       padding: 1rem 0;
     }
     .navbar-brand {
-      font-weight: 700;
+      display: inline-block;
+      font-weight: 900;
       color: var(--dark) !important;
-      font-size: 1.25rem;
+      font-size: 2.4rem;
+      text-decoration: none;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .brand-text {
+      display: inline-block;
+      font-weight: 900;
+      font-size: 2.4rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--dark) !important;
+      margin: 0;
+      line-height: 1;
     }
     .nav-link {
       color: var(--gray) !important;
@@ -179,7 +194,9 @@ if (ob_get_level() === 0) {
 <body>
 <nav class="navbar navbar-expand-lg mb-4">
   <div class="container">
-    <a class="navbar-brand" href="/SCP/index.php">My Website</a>
+    <a class="navbar-brand" href="/SCP/index.php">
+      <span class="brand-text">CARTIFY</span>
+    </a>
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
       <span class="navbar-toggler-icon"></span>
     </button>

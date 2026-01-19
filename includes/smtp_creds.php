@@ -7,6 +7,6 @@ return [
     'username' => '68931922db36ab',
     'password' => 'bc24d8c02beb7e', // Mailtrap SMTP password (not API token)
     'secure' => '', // '' for port 2525; use 'tls' with port 587
-    'from' => 'no-reply@scp.local',
-    'from_name' => 'SCP',
+    'from' => 'no-reply@cartify.local',
+    'from_name' => 'Cartify',
 ];
