@@ -26,7 +26,7 @@ if ($q !== '' || ($categoryFilter !== '' && $categoryFilter !== 'all')) {
   $products = array_filter($products, function($p) use ($q, $categoryFilter) {
     $ok = true;
     if ($q !== '') {
-      $ok = stripos($p['name'] ?? '', $q) !== false || stripos($p['description'] ?? '', $q) !== false;
+      $ok = stripos($p['title'] ?? '', $q) !== false || stripos($p['description'] ?? '', $q) !== false;
     }
     if ($ok && $categoryFilter !== '' && $categoryFilter !== 'all') {
       $ok = ($p['category'] ?? '') === $categoryFilter;
@@ -193,7 +193,7 @@ document.addEventListener('DOMContentLoaded', function(){
 <?php else: ?>
   <div class="row g-4">
   <?php foreach ($products as $product):
-      $name = htmlspecialchars($product['name'] ?? 'N/A');
+      $name = htmlspecialchars($product['title'] ?? 'N/A');
       $desc = htmlspecialchars($product['description'] ?? '');
       $price = number_format((float)($product['price'] ?? 0), 2);
       $id = (int)($product['id'] ?? 0);
@@ -325,11 +325,11 @@ let currentProduct = null;
 
 function openProductModal(product) {
   currentProduct = product;
-  document.getElementById('productModalLabel').textContent = product.name;
+  document.getElementById('productModalLabel').textContent = product.title;
   document.getElementById('modalProductImage').src = product.image;
-  document.getElementById('modalProductImage').alt = product.name;
+  document.getElementById('modalProductImage').alt = product.title;
   document.getElementById('modalProductCategory').textContent = product.category || 'Product';
-  document.getElementById('modalProductTitle').textContent = product.name;
+  document.getElementById('modalProductTitle').textContent = product.title;
   document.getElementById('modalProductDescription').textContent = product.description || 'No description available.';
   document.getElementById('modalProductPrice').textContent = '$' + (product.price || 0).toFixed(2);
   
@@ -383,7 +383,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const formData = new FormData();
     formData.append('product_id', productId);
     formData.append('quantity', quantity);
-    formData.append('product_name', currentProduct.name || 'Unknown Product');
+    formData.append('product_name', currentProduct.title || 'Unknown Product');
     formData.append('product_price', currentProduct.price || 0);
     formData.append('product_image', currentProduct.image || '');
     formData.append('add_to_cart', '1');

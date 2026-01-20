@@ -47,7 +47,7 @@ if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['staff_user','adm
           <input type="hidden" id="product_id">
           <div class="mb-3">
             <label class="form-label">Title</label>
-            <input type="text" class="form-control" id="name" required>
+            <input type="text" class="form-control" id="title" required>
           </div>
           <div class="mb-3">
             <label class="form-label">Price</label>
@@ -105,7 +105,7 @@ async function loadProducts(){
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${p.id ?? ''}</td>
-      <td>${escapeHtml(p.title ?? p.name ?? '')}</td>
+      <td>${escapeHtml(p.title ?? '')}</td>
       <td>$${Number(p.price ?? 0).toFixed(2)}</td>
       <td>${escapeHtml(p.category ?? '')}</td>
       <td>
@@ -125,7 +125,7 @@ function escapeHtml(s){
 function openAddModal(){
   document.getElementById('productModalTitle').textContent = 'Add Product';
   document.getElementById('product_id').value = '';
-  document.getElementById('name').value = '';
+  document.getElementById('title').value = '';
   document.getElementById('price').value = '';
   document.getElementById('category').value = '';
   document.getElementById('image').value = '';
@@ -138,7 +138,7 @@ async function openEditModal(id){
   const p = data.product || {};
   document.getElementById('productModalTitle').textContent = 'Edit Product';
   document.getElementById('product_id').value = p.id || '';
-  document.getElementById('name').value = p.title || p.name || '';
+  document.getElementById('title').value = p.title || '';
   document.getElementById('price').value = p.price || '';
   document.getElementById('category').value = p.category || '';
   document.getElementById('image').value = p.image || '';
@@ -163,15 +163,15 @@ const productForm = document.getElementById('productForm');
 productForm.addEventListener('submit', async (e)=>{
   e.preventDefault();
   const id = document.getElementById('product_id').value.trim();
-  const name = document.getElementById('name').value.trim();
+  const title = document.getElementById('title').value.trim();
   const price = document.getElementById('price').value.trim();
   const category = document.getElementById('category').value.trim();
   const image = document.getElementById('image').value.trim();
   const description = document.getElementById('description').value.trim();
-  if(!name || Number(price) <= 0){ alertBox('Please provide a valid name and price'); return; }
+  if(!title || Number(price) <= 0){ alertBox('Please provide a valid title and price'); return; }
 
   const form = new URLSearchParams();
-  form.set('name', name);
+  form.set('title', title);
   form.set('price', price);
   form.set('category', category);
   form.set('image', image);
