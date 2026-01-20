@@ -21,6 +21,7 @@ if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['staff_user','adm
       <table class="table align-middle" id="productsTable">
         <thead>
           <tr>
+            <th style="width: 50px;"></th>
             <th style="width: 80px;">ID</th>
             <th>Title</th>
             <th style="width: 120px;">Price</th>
@@ -89,21 +90,27 @@ async function fetchJSON(url, options={}){
 
 async function loadProducts(){
   const tbody = document.querySelector('#productsTable tbody');
-  tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Loading…</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Loading…</td></tr>';
   const data = await fetchJSON(`${apiBase}?action=list`);
   if(!data.success){
-    tbody.innerHTML = '<tr><td colspan="5" class="text-danger">Failed to load products.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" class="text-danger">Failed to load products.</td></tr>';
     return;
   }
   const products = Array.isArray(data.products) ? data.products : [];
   if(products.length === 0){
-    tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No products found.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No products found.</td></tr>';
     return;
   }
   tbody.innerHTML = '';
   for(const p of products){
     const tr = document.createElement('tr');
+    tr.setAttribute('draggable', 'true');
+    tr.setAttribute('data-product-id', p.id ?? '');
+    tr.classList.add('draggable-row');
     tr.innerHTML = `
+      <td class="drag-handle" style="cursor: move;">
+        <i class="fas fa-grip-vertical text-muted"></i>
+      </td>
       <td>${p.id ?? ''}</td>
       <td>${escapeHtml(p.title ?? '')}</td>
       <td>$${Number(p.price ?? 0).toFixed(2)}</td>
@@ -116,6 +123,7 @@ async function loadProducts(){
       </td>`;
     tbody.appendChild(tr);
   }
+  initializeDragAndDrop();
 }
 
 function escapeHtml(s){
@@ -195,7 +203,106 @@ productForm.addEventListener('submit', async (e)=>{
   }
 });
 
+let draggedElement = null;
+
+function initializeDragAndDrop() {
+  const rows = document.querySelectorAll('#productsTable tbody tr.draggable-row');
+  
+  rows.forEach(row => {
+    row.addEventListener('dragstart', function(e) {
+      draggedElement = this;
+      this.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/html', this.innerHTML);
+    });
+    
+    row.addEventListener('dragend', function(e) {
+      this.classList.remove('dragging');
+      document.querySelectorAll('#productsTable tbody tr').forEach(r => {
+        r.classList.remove('drag-over');
+      });
+    });
+    
+    row.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      
+      if (this === draggedElement) return;
+      
+      document.querySelectorAll('#productsTable tbody tr').forEach(r => {
+        r.classList.remove('drag-over');
+      });
+      this.classList.add('drag-over');
+    });
+    
+    row.addEventListener('drop', async function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      if (this === draggedElement) return;
+      
+      const tbody = document.querySelector('#productsTable tbody');
+      const allRows = Array.from(tbody.querySelectorAll('tr.draggable-row'));
+      const draggedIndex = allRows.indexOf(draggedElement);
+      const targetIndex = allRows.indexOf(this);
+      
+      if (draggedIndex < targetIndex) {
+        this.parentNode.insertBefore(draggedElement, this.nextSibling);
+      } else {
+        this.parentNode.insertBefore(draggedElement, this);
+      }
+      
+      this.classList.remove('drag-over');
+      
+      await saveProductOrder();
+    });
+  });
+}
+
+async function saveProductOrder() {
+  const tbody = document.querySelector('#productsTable tbody');
+  const rows = tbody.querySelectorAll('tr.draggable-row');
+  const order = Array.from(rows).map(row => row.getAttribute('data-product-id'));
+  
+  const formData = new URLSearchParams();
+  formData.set('action', 'reorder');
+  formData.set('order', JSON.stringify(order));
+  
+  const data = await fetchJSON(apiBase, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+    body: formData.toString()
+  });
+  
+  if (data.success) {
+    alertBox('Product order updated', 'success');
+  } else {
+    alertBox(data.message || 'Failed to save order', 'danger');
+  }
+}
+
 loadProducts();
 </script>
+
+<style>
+.draggable-row {
+  cursor: move;
+  transition: all 0.2s ease;
+}
+
+.draggable-row.dragging {
+  opacity: 0.5;
+  background-color: #f8f9fa;
+}
+
+.draggable-row.drag-over {
+  border-top: 3px solid #3b82f6;
+  background-color: #eff6ff;
+}
+
+.drag-handle:hover {
+  background-color: #f8f9fa;
+}
+</style>
 
 <?php include '../includes/footer.php'; ?>

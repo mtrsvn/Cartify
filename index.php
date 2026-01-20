@@ -4,7 +4,7 @@ require_once 'includes/db.php';
 require_once 'includes/functions.php';
 
 $products = [];
-$result = $conn->query("SELECT * FROM products");
+$result = $conn->query("SELECT * FROM products ORDER BY display_order ASC, id ASC");
 if ($result) {
     while ($row = $result->fetch_assoc()) {
         $products[] = $row;
@@ -14,6 +14,8 @@ if ($result) {
 $q = isset($_GET['q']) ? trim($_GET['q']) : '';
 $categoryFilter = isset($_GET['category']) ? trim($_GET['category']) : '';
 $sort = isset($_GET['sort']) ? $_GET['sort'] : '';
+$page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
+$itemsPerPage = 10;
 
 $categories = [];
 foreach ($products as $p) {
@@ -42,13 +44,23 @@ if ($sort === 'price_asc') {
   usort($products, function($a, $b){ return ($b['price'] ?? 0) <=> ($a['price'] ?? 0); });
 }
 
+$totalProducts = count($products);
+$totalPages = ceil($totalProducts / $itemsPerPage);
+$offset = ($page - 1) * $itemsPerPage;
+$paginatedProducts = array_slice($products, $offset, $itemsPerPage);
+
 if (isset($_GET['ajax'])) {
-    header('Content-Type: application/json');
-    echo json_encode(array_values($products));
-    exit;
+  header('Content-Type: application/json');
+  echo json_encode([
+    'products' => array_values($paginatedProducts),
+    'totalProducts' => $totalProducts,
+    'totalPages' => $totalPages,
+    'currentPage' => $page
+  ]);
+  exit;
 }
 
-include 'includes/header.php';
+include '../includes/header.php';
 ?>
 
 <div class="page-header">
@@ -108,6 +120,7 @@ include 'includes/header.php';
       <option value="price_desc" <?= $sort==='price_desc' ? 'selected' : '' ?>>Price: High to Low</option>
     </select>
   </div>
+  <input type="hidden" name="page" value="<?= $page ?>">
 </form>
 
 <script>
@@ -133,7 +146,12 @@ document.addEventListener('DOMContentLoaded', function(){
       const res = await fetch(url, { cache: 'no-store' });
       if (!res.ok) throw new Error('Network response was not ok');
       const data = await res.json();
-      renderProducts(data);
+      if (data.products) {
+        renderProducts(data.products);
+        renderPagination(data.currentPage, data.totalPages);
+      } else {
+        renderProducts(data);
+      }
     } catch (e) {
       console.error('Fetch error', e);
       container.innerHTML = '<div class="alert alert-danger">Error loading products. Please try again.</div>';
@@ -143,13 +161,10 @@ document.addEventListener('DOMContentLoaded', function(){
   function escapeHtml(s){ return (s===null||s===undefined)?'':String(s).replace(/[&<>"']/g, function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"}[c];}); }
 
   function renderProducts(items){
-    if (!items || items.length === 0) {
-      container.innerHTML = '<div class="alert alert-warning">No products found.</div>';
-      return;
-    }
+    if (!items || items.length === 0) { container.innerHTML = '<div class="alert alert-warning">No products found.</div>'; return; }
     let html = '<div class="row g-4">';
     for (const p of items) {
-      const name = escapeHtml(p.name || 'N/A');
+      const name = escapeHtml(p.title || 'N/A');
       const desc = escapeHtml(p.description || '');
       const price = (typeof p.price !== 'undefined') ? Number(p.price).toFixed(2) : '0.00';
       const id = parseInt(p.id) || 0;
@@ -157,42 +172,78 @@ document.addEventListener('DOMContentLoaded', function(){
       const category = escapeHtml(p.category || '');
       const rating = (p.rating && p.rating.rate) ? Number(p.rating.rate).toFixed(1) : '';
       const productJson = JSON.stringify(p).replace(/'/g, '&apos;').replace(/"/g, '&quot;');
-      html += `
-<div class="col-md-4">
-  <div class="card h-100 product-card" onclick='openProductModal(${productJson})'>
-    ${image?`<img src="${image}" class="card-img-top" alt="${name}" style="height: 250px; object-fit: contain; padding: 1rem;">` : ''}
-    <div class="card-body d-flex flex-column">
-      ${category?`<span class="badge bg-secondary mb-2 align-self-start">${category}</span>` : ''}
-      <h5 class="card-title mb-2" style="min-height: 3rem; font-size: 1rem;">${name}</h5>
-      <p class="card-text" style="color: #64748b; flex-grow: 1; font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">${desc.length>100?desc.substr(0,100)+'...':desc}</p>
-      <div class="mt-auto">
-        <div class="d-flex justify-content-between align-items-center">
-          <strong class="text-primary" style="font-size: 1.25rem;">$${price}</strong>
-          ${rating?`<span class="text-muted" style="font-size: 0.85rem;"><span class="text-warning">★</span> ${rating}</span>`:''}
-        </div>
-      </div>
-    </div>
-  </div>
-</div>`;
+      html += `\n<div class="col-md-4">\n  <div class="card h-100 product-card" onclick='openProductModal(${productJson})'>\n    ${image?`<img src="${image}" class="card-img-top" alt="${name}" style="height: 250px; object-fit: contain; padding: 1rem;">` : ''}\n    <div class="card-body d-flex flex-column">\n      ${category?`<span class="badge bg-secondary mb-2 align-self-start">${category}</span>` : ''}\n      <h5 class="card-title mb-2" style="min-height: 3rem; font-size: 1rem;">${name}</h5>\n      <p class="card-text" style="color: #64748b; flex-grow: 1; font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">${desc.length>100?desc.substr(0,100)+'...':desc}</p>\n      <div class="mt-auto">\n        <div class="d-flex justify-content-between align-items-center">\n          <strong class="text-primary" style="font-size: 1.25rem;">$${price}</strong>\n          ${rating?`<span class="text-muted" style="font-size: 0.85rem;"><span class="text-warning">★</span> ${rating}</span>`:''}
+        </div>\n      </div>\n    </div>\n  </div>\n</div>`;
     }
     html += '\n</div>';
     container.innerHTML = html;
   }
 
-  form.querySelectorAll('select[name="category"], select[name="sort"]').forEach(function(el){
-    el.addEventListener('change', function(){ fetchAndRender(); });
-  });
+  function renderPagination(currentPage, totalPages) {
+    const paginationContainer = document.getElementById('paginationContainer');
+    if (!paginationContainer || totalPages <= 1) {
+      if (paginationContainer) paginationContainer.innerHTML = '';
+      return;
+    }
+    
+    let html = '<nav aria-label="Product pagination"><ul class="pagination justify-content-center">';
+    
+    html += `<li class="page-item ${currentPage === 1 ? 'disabled' : ''}"><a class="page-link" href="#" data-page="${currentPage - 1}">Previous</a></li>`;
+    
+    for (let i = 1; i <= totalPages; i++) {
+      if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) {
+        html += `<li class="page-item ${i === currentPage ? 'active' : ''}"><a class="page-link" href="#" data-page="${i}">${i}</a></li>`;
+      } else if (i === currentPage - 3 || i === currentPage + 3) {
+        html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
+      }
+    }
+    
+    html += `<li class="page-item ${currentPage === totalPages ? 'disabled' : ''}"><a class="page-link" href="#" data-page="${currentPage + 1}">Next</a></li>`;
+    html += '</ul></nav>';
+    
+    paginationContainer.innerHTML = html;
+    
+    paginationContainer.querySelectorAll('a.page-link').forEach(link => {
+      link.addEventListener('click', function(e) {
+        e.preventDefault();
+        const page = this.getAttribute('data-page');
+        if (page && !this.parentElement.classList.contains('disabled')) {
+          const pageInput = document.querySelector('input[name="page"]');
+          if (pageInput) pageInput.value = page;
+          else {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'page';
+            input.value = page;
+            form.appendChild(input);
+          }
+          fetchAndRender();
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      });
+    });
+  }
 
-  form.addEventListener('submit', function(ev){ ev.preventDefault(); fetchAndRender(); });
+  form.querySelectorAll('select[name="category"], select[name="sort"]').forEach(function(el){ el.addEventListener('change', function(){ 
+    const pageInput = document.querySelector('input[name="page"]');
+    if (pageInput) pageInput.value = 1;
+    fetchAndRender(); 
+  }); });
+  form.addEventListener('submit', function(ev){ 
+    ev.preventDefault(); 
+    const pageInput = document.querySelector('input[name="page"]');
+    if (pageInput) pageInput.value = 1;
+    fetchAndRender(); 
+  });
 });
 </script>
 
 <div id="productsContainer">
-<?php if (empty($products)): ?>
+<?php if (empty($paginatedProducts)): ?>
   <div class="alert alert-warning">No products available at the moment.</div>
 <?php else: ?>
   <div class="row g-4">
-  <?php foreach ($products as $product):
+  <?php foreach ($paginatedProducts as $product):
       $name = htmlspecialchars($product['title'] ?? 'N/A');
       $desc = htmlspecialchars($product['description'] ?? '');
       $price = number_format((float)($product['price'] ?? 0), 2);
@@ -228,6 +279,30 @@ document.addEventListener('DOMContentLoaded', function(){
     </div>
   <?php endforeach; ?>
   </div>
+<?php endif; ?>
+</div>
+
+<div id="paginationContainer" class="mt-4">
+<?php if ($totalPages > 1): ?>
+  <nav aria-label="Product pagination">
+    <ul class="pagination justify-content-center">
+      <li class="page-item <?= $page === 1 ? 'disabled' : '' ?>">
+        <a class="page-link" href="?<?= http_build_query(array_merge($_GET, ['page' => $page - 1])) ?>">Previous</a>
+      </li>
+      <?php for ($i = 1; $i <= $totalPages; $i++): ?>
+        <?php if ($i === 1 || $i === $totalPages || ($i >= $page - 2 && $i <= $page + 2)): ?>
+          <li class="page-item <?= $i === $page ? 'active' : '' ?>">
+            <a class="page-link" href="?<?= http_build_query(array_merge($_GET, ['page' => $i])) ?>"><?= $i ?></a>
+          </li>
+        <?php elseif ($i === $page - 3 || $i === $page + 3): ?>
+          <li class="page-item disabled"><span class="page-link">...</span></li>
+        <?php endif; ?>
+      <?php endfor; ?>
+      <li class="page-item <?= $page === $totalPages ? 'disabled' : '' ?>">
+        <a class="page-link" href="?<?= http_build_query(array_merge($_GET, ['page' => $page + 1])) ?>">Next</a>
+      </li>
+    </ul>
+  </nav>
 <?php endif; ?>
 </div>
 

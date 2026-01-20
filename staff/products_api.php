@@ -31,12 +31,15 @@ switch ($action) {
     case 'delete':
         deleteProduct($conn, $_SESSION['user_id']);
         break;
+    case 'reorder':
+        reorderProducts($conn, $_SESSION['user_id']);
+        break;
     default:
         echo json_encode(['success' => false, 'message' => 'Invalid action']);
 }
 
 function listProducts($conn) {
-    $result = $conn->query("SELECT * FROM products ORDER BY id DESC");
+    $result = $conn->query("SELECT * FROM products ORDER BY display_order ASC, id ASC");
     if (!$result) {
         echo json_encode(['success' => false, 'message' => 'Database error']);
         return;
@@ -149,6 +152,40 @@ function deleteProduct($conn, $user_id) {
     } else {
         echo json_encode(['success' => false, 'message' => 'Failed to delete product: ' . $conn->error]);
         $stmt->close();
+    }
+}
+
+function reorderProducts($conn, $user_id) {
+    $orderJson = $_POST['order'] ?? '';
+    
+    // Decode JSON string to array
+    $order = json_decode($orderJson, true);
+    
+    if (!is_array($order) || empty($order)) {
+        echo json_encode(['success' => false, 'message' => 'Invalid order data']);
+        return;
+    }
+    
+    $conn->begin_transaction();
+    
+    try {
+        $stmt = $conn->prepare("UPDATE products SET display_order = ? WHERE id = ?");
+        
+        foreach ($order as $index => $product_id) {
+            $product_id = intval($product_id);
+            $display_order = $index + 1;
+            $stmt->bind_param('ii', $display_order, $product_id);
+            $stmt->execute();
+        }
+        
+        $stmt->close();
+        $conn->commit();
+        
+        log_action($conn, $user_id, "Reordered products");
+        echo json_encode(['success' => true, 'message' => 'Products reordered successfully']);
+    } catch (Exception $e) {
+        $conn->rollback();
+        echo json_encode(['success' => false, 'message' => 'Failed to reorder products: ' . $e->getMessage()]);
     }
 }
 ?>
