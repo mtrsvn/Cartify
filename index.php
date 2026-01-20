@@ -3,7 +3,6 @@ session_start();
 require_once 'includes/db.php';
 require_once 'includes/functions.php';
 
-// Fetch products from Fake Store API
 $api_url = 'https://fakestoreapi.com/products';
 $products = [];
 
@@ -11,7 +10,6 @@ $response = @file_get_contents($api_url);
 if ($response !== false) {
     $products = json_decode($response, true);
 } else {
-    // Fallback: try using cURL if file_get_contents fails
     if (function_exists('curl_init')) {
         $ch = curl_init($api_url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -26,7 +24,6 @@ if ($response !== false) {
         
 }
 
-// Handle search/filter inputs (GET)
 $q = isset($_GET['q']) ? trim($_GET['q']) : '';
 $categoryFilter = isset($_GET['category']) ? trim($_GET['category']) : '';
 $sort = isset($_GET['sort']) ? $_GET['sort'] : '';
@@ -38,7 +35,6 @@ foreach ($products as $p) {
 $categories = array_unique($categories);
 sort($categories);
 
-// Apply filters to products array
 if ($q !== '' || ($categoryFilter !== '' && $categoryFilter !== 'all')) {
   $products = array_filter($products, function($p) use ($q, $categoryFilter) {
     $ok = true;
@@ -53,14 +49,12 @@ if ($q !== '' || ($categoryFilter !== '' && $categoryFilter !== 'all')) {
   $products = array_values($products);
 }
 
-// Apply sorting (independent of filters)
 if ($sort === 'price_asc') {
   usort($products, function($a, $b){ return ($a['price'] ?? 0) <=> ($b['price'] ?? 0); });
 } elseif ($sort === 'price_desc') {
   usort($products, function($a, $b){ return ($b['price'] ?? 0) <=> ($a['price'] ?? 0); });
 }
 
-// If requested by AJAX, return JSON of products
 if (isset($_GET['ajax'])) {
     header('Content-Type: application/json');
     echo json_encode(array_values($products));
@@ -198,12 +192,10 @@ document.addEventListener('DOMContentLoaded', function(){
     container.innerHTML = html;
   }
 
-  // Attach change listeners to selects
   form.querySelectorAll('select[name="category"], select[name="sort"]').forEach(function(el){
     el.addEventListener('change', function(){ fetchAndRender(); });
   });
 
-  // Intercept form submit to do AJAX
   form.addEventListener('submit', function(ev){ ev.preventDefault(); fetchAndRender(); });
 });
 </script>
@@ -252,7 +244,6 @@ document.addEventListener('DOMContentLoaded', function(){
 <?php endif; ?>
 </div>
 
-<!-- Product Details Modal -->
 <div class="modal fade" id="productModal" tabindex="-1" aria-labelledby="productModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-lg">
     <div class="modal-content">
@@ -279,21 +270,26 @@ document.addEventListener('DOMContentLoaded', function(){
               </div>
               <h3 id="modalProductPrice" class="text-primary mb-4"></h3>
             </div>
-            <div class="mb-4">
-              <label class="form-label fw-bold">Quantity</label>
-              <div class="quantity-selector d-flex align-items-center gap-3">
-                <button type="button" class="btn btn-outline-secondary quantity-btn" id="decreaseQty">
-                  <i class="fas fa-minus"></i>
-                </button>
-                <input type="number" id="modalQuantity" class="form-control text-center" value="1" min="1" max="99" style="width: 80px; font-size: 1.1rem; font-weight: 600;">
-                <button type="button" class="btn btn-outline-secondary quantity-btn" id="increaseQty">
-                  <i class="fas fa-plus"></i>
-                </button>
+            <?php 
+              $isAdminView = isset($_SESSION['role']) && in_array($_SESSION['role'], ['staff_user','administrator','admin_sec']);
+              if (!$isAdminView): 
+            ?>
+              <div class="mb-4">
+                <label class="form-label fw-bold">Quantity</label>
+                <div class="quantity-selector d-flex align-items-center gap-3">
+                  <button type="button" class="btn btn-outline-secondary quantity-btn" id="decreaseQty">
+                    <i class="fas fa-minus"></i>
+                  </button>
+                  <input type="number" id="modalQuantity" class="form-control text-center" value="1" min="1" max="99" style="width: 80px; font-size: 1.1rem; font-weight: 600;">
+                  <button type="button" class="btn btn-outline-secondary quantity-btn" id="increaseQty">
+                    <i class="fas fa-plus"></i>
+                  </button>
+                </div>
               </div>
-            </div>
-            <button type="button" class="btn btn-primary w-100 btn-lg" id="addToCartBtn" data-product-id="">
-              <i class="fas fa-shopping-cart me-2"></i>Add to Cart
-            </button>
+              <button type="button" class="btn btn-primary w-100 btn-lg" id="addToCartBtn" data-product-id="">
+                <i class="fas fa-shopping-cart me-2"></i>Add to Cart
+              </button>
+            <?php endif; ?>
           </div>
         </div>
       </div>
@@ -358,45 +354,45 @@ function openProductModal(product) {
     document.getElementById('modalProductRatingCount').textContent = '';
   }
   
-  document.getElementById('modalQuantity').value = 1;
-  document.getElementById('addToCartBtn').setAttribute('data-product-id', product.id);
+  const qtyEl = document.getElementById('modalQuantity');
+  if (qtyEl) qtyEl.value = 1;
+  const addBtn = document.getElementById('addToCartBtn');
+  if (addBtn) addBtn.setAttribute('data-product-id', product.id);
   
   const modal = new bootstrap.Modal(document.getElementById('productModal'));
   modal.show();
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-  // Quantity controls
-  document.getElementById('decreaseQty').addEventListener('click', function() {
-    const qtyInput = document.getElementById('modalQuantity');
-    let val = parseInt(qtyInput.value) || 1;
-    if (val > 1) {
-      qtyInput.value = val - 1;
-    }
-  });
+  const decBtn = document.getElementById('decreaseQty');
+  const incBtn = document.getElementById('increaseQty');
+  const qtyInputEl = document.getElementById('modalQuantity');
+  if (decBtn && qtyInputEl) {
+    decBtn.addEventListener('click', function() {
+      let val = parseInt(qtyInputEl.value) || 1;
+      if (val > 1) qtyInputEl.value = val - 1;
+    });
+  }
+  if (incBtn && qtyInputEl) {
+    incBtn.addEventListener('click', function() {
+      let val = parseInt(qtyInputEl.value) || 1;
+      if (val < 99) qtyInputEl.value = val + 1;
+    });
+  }
+  if (qtyInputEl) {
+    qtyInputEl.addEventListener('input', function() {
+      let val = parseInt(this.value);
+      if (isNaN(val) || val < 1) this.value = 1;
+      if (val > 99) this.value = 99;
+    });
+  }
   
-  document.getElementById('increaseQty').addEventListener('click', function() {
-    const qtyInput = document.getElementById('modalQuantity');
-    let val = parseInt(qtyInput.value) || 1;
-    if (val < 99) {
-      qtyInput.value = val + 1;
-    }
-  });
-  
-  // Validate quantity input
-  document.getElementById('modalQuantity').addEventListener('input', function() {
-    let val = parseInt(this.value);
-    if (isNaN(val) || val < 1) this.value = 1;
-    if (val > 99) this.value = 99;
-  });
-  
-  // Add to cart functionality
-  document.getElementById('addToCartBtn').addEventListener('click', function() {
+  const addBtn = document.getElementById('addToCartBtn');
+  if (addBtn) addBtn.addEventListener('click', function() {
     <?php if (isset($_SESSION['user_id'])): ?>
     const productId = this.getAttribute('data-product-id');
-    const quantity = parseInt(document.getElementById('modalQuantity').value) || 1;
+    const quantity = parseInt((document.getElementById('modalQuantity')||{value:1}).value) || 1;
     
-    // Create FormData for AJAX submission
     const formData = new FormData();
     formData.append('product_id', productId);
     formData.append('quantity', quantity);
@@ -405,15 +401,12 @@ document.addEventListener('DOMContentLoaded', function() {
     formData.append('product_image', currentProduct.image || '');
     formData.append('add_to_cart', '1');
     
-    // Send AJAX request
     fetch('/SCP/products/cart.php', {
       method: 'POST',
       body: formData
     })
     .then(response => {
-      // Close the modal
       bootstrap.Modal.getInstance(document.getElementById('productModal')).hide();
-      // Show success message
       showToast('Item added to cart!', 'success');
     })
     .catch(error => {

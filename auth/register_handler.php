@@ -40,9 +40,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $otp = rand(100000, 999999);
     $otp_expires = date('Y-m-d H:i:s', strtotime('+10 minutes'));
 
-    $stmt = $conn->prepare("INSERT INTO users (username,email,password_hash,role,otp_code,otp_expires) VALUES (?, ?, ?, 'guest_user',?,?)");
+    $stmt = $conn->prepare("INSERT INTO users (username,email,password_hash,role,otp_code,otp_expires) VALUES (?, ?, ?, ?, ?, ?)");
     $pw_hash = password_hash($password, PASSWORD_DEFAULT);
-    $stmt->bind_param("sssss", $username, $email, $pw_hash, $otp, $otp_expires);
+    $role = 'regular_user';
+    $stmt->bind_param("ssssss", $username, $email, $pw_hash, $role, $otp, $otp_expires);
     if($stmt->execute()){
         $_SESSION['otp_user_id'] = $conn->insert_id;
         $_SESSION['otp_email'] = $email;

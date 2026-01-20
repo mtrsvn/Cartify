@@ -9,11 +9,46 @@ if(!isset($_SESSION['role']) || ($_SESSION['role'] != 'staff_user' && $_SESSION[
 }
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['purchase_id'])) {
-    $pid = intval($_POST['purchase_id']);
-    $stmt = $conn->prepare("UPDATE purchases SET approved=1 WHERE id=?");
-    $stmt->bind_param("i", $pid);
-    $stmt->execute();
-    $stmt->close();
+  $pid = intval($_POST['purchase_id']);
+  $stmt = $conn->prepare("UPDATE purchases SET approved=1 WHERE id=?");
+  $stmt->bind_param("i", $pid);
+  $stmt->execute();
+  $stmt->close();
+
+  require_once '../includes/mailer.php';
+
+  $detailStmt = $conn->prepare(
+    "SELECT p.id, p.user_id, p.product_name, p.product_price, p.quantity, u.email, u.username
+     FROM purchases p
+     JOIN users u ON p.user_id = u.id
+     WHERE p.id = ?"
+  );
+  $detailStmt->bind_param('i', $pid);
+  $detailStmt->execute();
+  $detailRes = $detailStmt->get_result();
+  $purchase = $detailRes->fetch_assoc();
+  $detailStmt->close();
+
+  if ($purchase && !empty($purchase['email'])) {
+    $items = [[
+      'name' => $purchase['product_name'],
+      'quantity' => (int)$purchase['quantity'],
+      'price' => (float)$purchase['product_price']
+    ]];
+    $total = (float)$purchase['product_price'] * (int)$purchase['quantity'];
+    send_purchase_confirmation_email($purchase['email'], $purchase['username'] ?? $purchase['email'], $items, $total);
+    if (function_exists('log_action')) {
+      log_action($conn, (int)$purchase['user_id'], 'Order item approved and email sent');
+    }
+  }
+}
+
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['reject_id'])) {
+  $rid = intval($_POST['reject_id']);
+  $stmt = $conn->prepare("UPDATE purchases SET approved=2 WHERE id=?");
+  $stmt->bind_param("i", $rid);
+  $stmt->execute();
+  $stmt->close();
 }
 
 $res = $conn->query("SELECT purchases.*, users.username, products.name AS product_name FROM purchases 
@@ -37,10 +72,16 @@ WHERE purchases.approved=0");
       <td><?= htmlspecialchars($row['product_name']) ?></td>
       <td><?= $row['quantity'] ?></td>
       <td>
-        <form method="post" style="margin:0;">
-          <input type="hidden" name="purchase_id" value="<?= $row['id'] ?>">
-          <button type="submit" class="btn btn-primary btn-sm">Approve</button>
-        </form>
+        <div class="d-flex gap-2">
+          <form method="post" style="margin:0;">
+            <input type="hidden" name="purchase_id" value="<?= $row['id'] ?>">
+            <button type="submit" class="btn btn-primary btn-sm">Approve</button>
+          </form>
+          <form method="post" style="margin:0;">
+            <input type="hidden" name="reject_id" value="<?= $row['id'] ?>">
+            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Reject this order?')">Reject</button>
+          </form>
+        </div>
       </td>
     </tr>
     <?php endwhile; ?>

@@ -3,7 +3,6 @@ session_start();
 require_once '../includes/db.php';
 require_once '../includes/functions.php';
 
-// Process form actions BEFORE any output
 if (!isset($_SESSION['cart'])) $_SESSION['cart'] = [];
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_to_cart'])) {
@@ -16,7 +15,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_to_cart'])) {
     if ($product_id > 0 && isset($_SESSION['user_id'])) {
         if ($quantity < 1) $quantity = 1;
         
-        // Save to database
         $stmt = $conn->prepare("INSERT INTO cart (user_id, product_id, product_name, product_price, product_image, quantity) 
                                 VALUES (?, ?, ?, ?, ?, ?) 
                                 ON DUPLICATE KEY UPDATE quantity = quantity + ?, product_name = ?, product_price = ?, product_image = ?");
@@ -25,10 +23,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_to_cart'])) {
             $quantity, $product_name, $product_price, $product_image);
         $stmt->execute();
         $stmt->close();
+    if (function_exists('log_action')) {
+      $safeName = is_string($product_name) ? $product_name : 'Unknown Product';
+      $actionMsg = sprintf('Added to cart: %s x%d (product_id=%d)', $safeName, $quantity, $product_id);
+      log_action($conn, (int)$_SESSION['user_id'], $actionMsg);
+    }
     }
 }
 
-// Handle remove from cart
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['remove_item'])) {
     $product_id = intval($_POST['product_id'] ?? 0);
     if (isset($_SESSION['user_id'])) {
@@ -41,7 +43,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['remove_item'])) {
     exit();
 }
 
-// Handle update quantity
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_quantity'])) {
     $product_id = intval($_POST['product_id'] ?? 0);
     $new_quantity = intval($_POST['quantity'] ?? 1);
@@ -58,7 +59,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_quantity'])) {
 
 if (isset($_POST['checkout'])) {
     if (isset($_SESSION['user_id'])) {
-        // Get cart items from database
         $stmt = $conn->prepare("SELECT product_id, quantity FROM cart WHERE user_id = ?");
         $stmt->bind_param('i', $_SESSION['user_id']);
         $stmt->execute();
@@ -69,8 +69,6 @@ if (isset($_POST['checkout'])) {
         $orderTotal = 0;
         while ($item = $result->fetch_assoc()) {
             $stmt2 = $conn->prepare("INSERT INTO purchases (user_id, product_id, quantity, product_name, product_price) VALUES (?, ?, ?, ?, ?)");
-            
-            // Get product details from cart
             $cartStmt = $conn->prepare("SELECT product_name, product_price FROM cart WHERE user_id = ? AND product_id = ?");
             $cartStmt->bind_param('ii', $_SESSION['user_id'], $item['product_id']);
             $cartStmt->execute();
@@ -82,8 +80,6 @@ if (isset($_POST['checkout'])) {
             $stmt2->execute();
             $stmt2->close();
             $totalItems += $item['quantity'];
-            
-            // Collect items for email
             $orderItems[] = [
                 'name' => $cartItem['product_name'],
                 'quantity' => $item['quantity'],
@@ -93,34 +89,19 @@ if (isset($_POST['checkout'])) {
         }
         $stmt->close();
         
-        // Clear cart from database
         $stmt = $conn->prepare("DELETE FROM cart WHERE user_id = ?");
         $stmt->bind_param('i', $_SESSION['user_id']);
         $stmt->execute();
         $stmt->close();
         
         log_action($conn, $_SESSION['user_id'], "Purchase created, awaiting staff approval");
-        
-        // Send purchase confirmation email
-        require_once '../includes/mailer.php';
-        $userStmt = $conn->prepare("SELECT email, username FROM users WHERE id = ?");
-        $userStmt->bind_param('i', $_SESSION['user_id']);
-        $userStmt->execute();
-        $userResult = $userStmt->get_result();
-        $userData = $userResult->fetch_assoc();
-        $userStmt->close();
-        
-        if ($userData) {
-            send_purchase_confirmation_email($userData['email'], $userData['username'], $orderItems, $orderTotal);
-        }
-        
+
         $_SESSION['checkout_success'] = true;
         header('Location: /SCP/products/cart.php');
         exit();
     }
 }
 
-// Load cart from database
 $cart_items = [];
 if (isset($_SESSION['user_id'])) {
     $stmt = $conn->prepare("SELECT product_id, product_name, product_price, product_image, quantity FROM cart WHERE user_id = ?");
@@ -138,7 +119,6 @@ if (isset($_SESSION['user_id'])) {
     $stmt->close();
 }
 
-// Now include header after processing
 include '../includes/header.php';
 ?>
 
@@ -255,7 +235,7 @@ include '../includes/header.php';
     </button>
   </div>
 
-  <!-- Checkout Confirmation Modal -->
+  
   <div class="modal fade" id="checkoutModal" tabindex="-1" aria-labelledby="checkoutModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content">
@@ -284,7 +264,7 @@ include '../includes/header.php';
     <?php if (isset($_SESSION['checkout_success']) && $_SESSION['checkout_success']): ?>
       <?php unset($_SESSION['checkout_success']); ?>
       document.addEventListener('DOMContentLoaded', function() {
-        showToast('Purchase confirmed! Your order is being shipped. Check your email for confirmation.', 'success');
+        showToast("Purchase confirmed! Awaiting approval. You'll receive an email once approved.", 'success');
       });
     <?php endif; ?>
 

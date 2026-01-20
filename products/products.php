@@ -255,21 +255,26 @@ document.addEventListener('DOMContentLoaded', function(){
               </div>
               <h3 id="modalProductPrice" class="text-primary mb-4"></h3>
             </div>
-            <div class="mb-4">
-              <label class="form-label fw-bold">Quantity</label>
-              <div class="quantity-selector d-flex align-items-center gap-3">
-                <button type="button" class="btn btn-outline-secondary quantity-btn" id="decreaseQty">
-                  <i class="fas fa-minus"></i>
-                </button>
-                <input type="number" id="modalQuantity" class="form-control text-center" value="1" min="1" max="99" style="width: 80px; font-size: 1.1rem; font-weight: 600;">
-                <button type="button" class="btn btn-outline-secondary quantity-btn" id="increaseQty">
-                  <i class="fas fa-plus"></i>
-                </button>
+            <?php 
+              $isAdminView = isset($_SESSION['role']) && in_array($_SESSION['role'], ['staff_user','administrator','admin_sec']);
+              if (!$isAdminView): 
+            ?>
+              <div class="mb-4">
+                <label class="form-label fw-bold">Quantity</label>
+                <div class="quantity-selector d-flex align-items-center gap-3">
+                  <button type="button" class="btn btn-outline-secondary quantity-btn" id="decreaseQty">
+                    <i class="fas fa-minus"></i>
+                  </button>
+                  <input type="number" id="modalQuantity" class="form-control text-center" value="1" min="1" max="99" style="width: 80px; font-size: 1.1rem; font-weight: 600;">
+                  <button type="button" class="btn btn-outline-secondary quantity-btn" id="increaseQty">
+                    <i class="fas fa-plus"></i>
+                  </button>
+                </div>
               </div>
-            </div>
-            <button type="button" class="btn btn-primary w-100 btn-lg" id="addToCartBtn" data-product-id="">
-              <i class="fas fa-shopping-cart me-2"></i>Add to Cart
-            </button>
+              <button type="button" class="btn btn-primary w-100 btn-lg" id="addToCartBtn" data-product-id="">
+                <i class="fas fa-shopping-cart me-2"></i>Add to Cart
+              </button>
+            <?php endif; ?>
           </div>
         </div>
       </div>
@@ -334,8 +339,10 @@ function openProductModal(product) {
     document.getElementById('modalProductRatingCount').textContent = '';
   }
   
-  document.getElementById('modalQuantity').value = 1;
-  document.getElementById('addToCartBtn').setAttribute('data-product-id', product.id);
+  const qtyEl = document.getElementById('modalQuantity');
+  if (qtyEl) qtyEl.value = 1;
+  const addBtn = document.getElementById('addToCartBtn');
+  if (addBtn) addBtn.setAttribute('data-product-id', product.id);
   
   const modal = new bootstrap.Modal(document.getElementById('productModal'));
   modal.show();
@@ -343,34 +350,35 @@ function openProductModal(product) {
 
 document.addEventListener('DOMContentLoaded', function() {
   // Quantity controls
-  document.getElementById('decreaseQty').addEventListener('click', function() {
-    const qtyInput = document.getElementById('modalQuantity');
-    let val = parseInt(qtyInput.value) || 1;
-    if (val > 1) {
-      qtyInput.value = val - 1;
-    }
-  });
-  
-  document.getElementById('increaseQty').addEventListener('click', function() {
-    const qtyInput = document.getElementById('modalQuantity');
-    let val = parseInt(qtyInput.value) || 1;
-    if (val < 99) {
-      qtyInput.value = val + 1;
-    }
-  });
-  
-  // Validate quantity input
-  document.getElementById('modalQuantity').addEventListener('input', function() {
-    let val = parseInt(this.value);
-    if (isNaN(val) || val < 1) this.value = 1;
-    if (val > 99) this.value = 99;
-  });
+  const decBtn = document.getElementById('decreaseQty');
+  const incBtn = document.getElementById('increaseQty');
+  const qtyInputEl = document.getElementById('modalQuantity');
+  if (decBtn && qtyInputEl) {
+    decBtn.addEventListener('click', function() {
+      let val = parseInt(qtyInputEl.value) || 1;
+      if (val > 1) qtyInputEl.value = val - 1;
+    });
+  }
+  if (incBtn && qtyInputEl) {
+    incBtn.addEventListener('click', function() {
+      let val = parseInt(qtyInputEl.value) || 1;
+      if (val < 99) qtyInputEl.value = val + 1;
+    });
+  }
+  if (qtyInputEl) {
+    qtyInputEl.addEventListener('input', function() {
+      let val = parseInt(this.value);
+      if (isNaN(val) || val < 1) this.value = 1;
+      if (val > 99) this.value = 99;
+    });
+  }
   
   // Add to cart functionality
-  document.getElementById('addToCartBtn').addEventListener('click', function() {
+  const addBtn = document.getElementById('addToCartBtn');
+  if (addBtn) addBtn.addEventListener('click', function() {
     <?php if (isset($_SESSION['user_id'])): ?>
     const productId = this.getAttribute('data-product-id');
-    const quantity = parseInt(document.getElementById('modalQuantity').value) || 1;
+    const quantity = parseInt((document.getElementById('modalQuantity')||{value:1}).value) || 1;
     
     // Create FormData for AJAX submission
     const formData = new FormData();

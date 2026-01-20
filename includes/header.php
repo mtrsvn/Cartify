@@ -13,7 +13,6 @@ if (ob_get_level() === 0) {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cartify</title>
     <link rel="icon" href="/SCP/assets/store-solid-full.svg" type="image/svg+xml">
-      <!-- Brand updated to Cartify -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
   <style>
@@ -75,6 +74,13 @@ if (ob_get_level() === 0) {
       border-radius: 8px;
     }
     .btn-primary:hover { background: var(--primary-hover); }
+    /* Align danger button sizing with primary for consistent look */
+    .btn-danger {
+      border: none;
+      padding: 0.6rem 1.5rem;
+      font-weight: 500;
+      border-radius: 8px;
+    }
     .btn-secondary {
       background: #fff;
       border: 1px solid var(--border);
@@ -198,7 +204,6 @@ if (ob_get_level() === 0) {
 </head>
 <body>
 <?php
-// Detect current page for active nav indicator
 $current_page = basename($_SERVER['PHP_SELF']);
 $current_dir = basename(dirname($_SERVER['PHP_SELF']));
 ?>
@@ -213,11 +218,15 @@ $current_dir = basename(dirname($_SERVER['PHP_SELF']));
     <div class="collapse navbar-collapse justify-content-end" id="navbarNav">
       <ul class="navbar-nav align-items-center gap-1">
         <?php if(isset($_SESSION['username'])): ?>
+          <?php $isAdminUser = isset($_SESSION['role']) && in_array($_SESSION['role'], ['staff_user','administrator','admin_sec']); ?>
           <li class="nav-item"><a class="nav-link <?= ($current_page == 'products.php' || $current_page == 'index.php') ? 'active' : '' ?>" href="/SCP/products/products.php">Products</a></li>
-          <li class="nav-item"><a class="nav-link <?= $current_page == 'cart.php' ? 'active' : '' ?>" href="/SCP/products/cart.php">Cart</a></li>
+          <?php if ($isAdminUser): ?>
+            <li class="nav-item"><a class="nav-link <?= $current_page == 'audit_log.php' ? 'active' : '' ?>" href="/SCP/admin/audit_log.php">Audit</a></li>
+          <?php else: ?>
+            <li class="nav-item"><a class="nav-link <?= $current_page == 'cart.php' ? 'active' : '' ?>" href="/SCP/products/cart.php">Cart</a></li>
+          <?php endif; ?>
           <?php if(isset($_SESSION['role']) && $_SESSION['role']=='admin_sec'): ?>
             <li class="nav-item"><a class="nav-link <?= $current_page == 'users.php' ? 'active' : '' ?>" href="/SCP/admin/users.php">Users</a></li>
-            <li class="nav-item"><a class="nav-link <?= $current_page == 'audit_log.php' ? 'active' : '' ?>" href="/SCP/admin/audit_log.php">Logs</a></li>
           <?php endif; ?>
           <?php if(isset($_SESSION['role']) && ($_SESSION['role']=='staff_user' || $_SESSION['role']=='admin_sec')): ?>
             <li class="nav-item"><a class="nav-link <?= $current_page == 'approve.php' ? 'active' : '' ?>" href="/SCP/staff/approve.php">Orders</a></li>
