@@ -1,5 +1,6 @@
 <?php
 require_once '../includes/db.php';
+require_once '../includes/functions.php';
 session_start();
 
 header('Content-Type: application/json');
@@ -13,23 +14,30 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 
     if ($user_id) {
-        $stmt = $conn->prepare("SELECT otp_code, otp_expires FROM users WHERE id=?");
+        $stmt = $conn->prepare("SELECT otp_code, otp_expires, username, email FROM users WHERE id=?");
         $stmt->bind_param("i", $user_id);
         $stmt->execute();
-        $stmt->bind_result($db_otp, $otp_expiry);
+        $stmt->bind_result($db_otp, $otp_expiry, $username, $email);
 
         if($stmt->fetch()) {
             if ($db_otp && $otp_expiry) {
                 if($db_otp == $code && strtotime($otp_expiry) > time()) {
                     $stmt->close();
-                    $stmt2 = $conn->prepare("UPDATE users SET otp_code=NULL, otp_expires=NULL WHERE id=?");
+                    $stmt2 = $conn->prepare("UPDATE users SET otp_code=NULL, otp_expires=NULL, role='regular_user' WHERE id=?");
                     $stmt2->bind_param("i", $user_id);
                     $stmt2->execute();
                     $stmt2->close();
-                    
+
+                    // Log the user in after successful verification
+                    $_SESSION['user_id'] = $user_id;
+                    $_SESSION['role'] = 'regular_user';
+                    $_SESSION['username'] = $username;
+
                     unset($_SESSION['otp_user_id']);
                     unset($_SESSION['otp_email']);
-                    
+
+                    log_action($conn, $user_id, 'OTP verified and user promoted to regular_user');
+
                     echo json_encode(['success' => true, 'message' => 'Email verified successfully!', 'redirect' => '/SCP/index.php']);
                     exit();
                 } else {

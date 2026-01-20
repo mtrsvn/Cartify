@@ -14,8 +14,6 @@ if ($result) {
 $q = isset($_GET['q']) ? trim($_GET['q']) : '';
 $categoryFilter = isset($_GET['category']) ? trim($_GET['category']) : '';
 $sort = isset($_GET['sort']) ? $_GET['sort'] : '';
-$page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
-$itemsPerPage = 10;
 
 $categories = [];
 foreach ($products as $p) {
@@ -44,23 +42,13 @@ if ($sort === 'price_asc') {
   usort($products, function($a, $b){ return ($b['price'] ?? 0) <=> ($a['price'] ?? 0); });
 }
 
-$totalProducts = count($products);
-$totalPages = ceil($totalProducts / $itemsPerPage);
-$offset = ($page - 1) * $itemsPerPage;
-$paginatedProducts = array_slice($products, $offset, $itemsPerPage);
-
 if (isset($_GET['ajax'])) {
   header('Content-Type: application/json');
-  echo json_encode([
-    'products' => array_values($paginatedProducts),
-    'totalProducts' => $totalProducts,
-    'totalPages' => $totalPages,
-    'currentPage' => $page
-  ]);
+  echo json_encode(array_values($products));
   exit;
 }
 
-include '../includes/header.php';
+include 'includes/header.php';
 ?>
 
 <div class="page-header">
@@ -120,7 +108,6 @@ include '../includes/header.php';
       <option value="price_desc" <?= $sort==='price_desc' ? 'selected' : '' ?>>Price: High to Low</option>
     </select>
   </div>
-  <input type="hidden" name="page" value="<?= $page ?>">
 </form>
 
 <script>
@@ -139,19 +126,13 @@ document.addEventListener('DOMContentLoaded', function(){
   }
 
   async function fetchAndRender() {
-    const qs = buildQuery();
     container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div></div>';
     try {
-      const url = window.location.pathname + '?' + qs + '&ajax=1';
+      const url = window.location.pathname + '?' + buildQuery() + '&ajax=1';
       const res = await fetch(url, { cache: 'no-store' });
       if (!res.ok) throw new Error('Network response was not ok');
       const data = await res.json();
-      if (data.products) {
-        renderProducts(data.products);
-        renderPagination(data.currentPage, data.totalPages);
-      } else {
-        renderProducts(data);
-      }
+      renderProducts(data);
     } catch (e) {
       console.error('Fetch error', e);
       container.innerHTML = '<div class="alert alert-danger">Error loading products. Please try again.</div>';
@@ -161,7 +142,10 @@ document.addEventListener('DOMContentLoaded', function(){
   function escapeHtml(s){ return (s===null||s===undefined)?'':String(s).replace(/[&<>"']/g, function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"}[c];}); }
 
   function renderProducts(items){
-    if (!items || items.length === 0) { container.innerHTML = '<div class="alert alert-warning">No products found.</div>'; return; }
+    if (!items || items.length === 0) { 
+      container.innerHTML = '<div class="alert alert-warning">No products found.</div>'; 
+      return; 
+    }
     let html = '<div class="row g-4">';
     for (const p of items) {
       const name = escapeHtml(p.title || 'N/A');
@@ -179,71 +163,17 @@ document.addEventListener('DOMContentLoaded', function(){
     container.innerHTML = html;
   }
 
-  function renderPagination(currentPage, totalPages) {
-    const paginationContainer = document.getElementById('paginationContainer');
-    if (!paginationContainer || totalPages <= 1) {
-      if (paginationContainer) paginationContainer.innerHTML = '';
-      return;
-    }
-    
-    let html = '<nav aria-label="Product pagination"><ul class="pagination justify-content-center">';
-    
-    html += `<li class="page-item ${currentPage === 1 ? 'disabled' : ''}"><a class="page-link" href="#" data-page="${currentPage - 1}">Previous</a></li>`;
-    
-    for (let i = 1; i <= totalPages; i++) {
-      if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) {
-        html += `<li class="page-item ${i === currentPage ? 'active' : ''}"><a class="page-link" href="#" data-page="${i}">${i}</a></li>`;
-      } else if (i === currentPage - 3 || i === currentPage + 3) {
-        html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
-      }
-    }
-    
-    html += `<li class="page-item ${currentPage === totalPages ? 'disabled' : ''}"><a class="page-link" href="#" data-page="${currentPage + 1}">Next</a></li>`;
-    html += '</ul></nav>';
-    
-    paginationContainer.innerHTML = html;
-    
-    paginationContainer.querySelectorAll('a.page-link').forEach(link => {
-      link.addEventListener('click', function(e) {
-        e.preventDefault();
-        const page = this.getAttribute('data-page');
-        if (page && !this.parentElement.classList.contains('disabled')) {
-          const pageInput = document.querySelector('input[name="page"]');
-          if (pageInput) pageInput.value = page;
-          else {
-            const input = document.createElement('input');
-            input.type = 'hidden';
-            input.name = 'page';
-            input.value = page;
-            form.appendChild(input);
-          }
-          fetchAndRender();
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-      });
-    });
-  }
-
-  form.querySelectorAll('select[name="category"], select[name="sort"]').forEach(function(el){ el.addEventListener('change', function(){ 
-    const pageInput = document.querySelector('input[name="page"]');
-    if (pageInput) pageInput.value = 1;
-    fetchAndRender(); 
-  }); });
-  form.addEventListener('submit', function(ev){ 
-    ev.preventDefault(); 
-    const pageInput = document.querySelector('input[name="page"]');
-    if (pageInput) pageInput.value = 1;
-    fetchAndRender(); 
-  });
+  form.querySelectorAll('select[name="category"], select[name="sort"]').forEach(function(el){ el.addEventListener('change', function(){ fetchAndRender(); }); });
+  form.addEventListener('submit', function(ev){ ev.preventDefault(); fetchAndRender(); });
 });
 </script>
 
 <div id="productsContainer">
-<?php if (empty($paginatedProducts)): ?>
+<?php if (empty($products)): ?>
   <div class="alert alert-warning">No products available at the moment.</div>
 <?php else: ?>
   <div class="row g-4">
-  <?php foreach ($paginatedProducts as $product):
+  <?php foreach ($products as $product):
       $name = htmlspecialchars($product['title'] ?? 'N/A');
       $desc = htmlspecialchars($product['description'] ?? '');
       $price = number_format((float)($product['price'] ?? 0), 2);
@@ -282,30 +212,6 @@ document.addEventListener('DOMContentLoaded', function(){
 <?php endif; ?>
 </div>
 
-<div id="paginationContainer" class="mt-4">
-<?php if ($totalPages > 1): ?>
-  <nav aria-label="Product pagination">
-    <ul class="pagination justify-content-center">
-      <li class="page-item <?= $page === 1 ? 'disabled' : '' ?>">
-        <a class="page-link" href="?<?= http_build_query(array_merge($_GET, ['page' => $page - 1])) ?>">Previous</a>
-      </li>
-      <?php for ($i = 1; $i <= $totalPages; $i++): ?>
-        <?php if ($i === 1 || $i === $totalPages || ($i >= $page - 2 && $i <= $page + 2)): ?>
-          <li class="page-item <?= $i === $page ? 'active' : '' ?>">
-            <a class="page-link" href="?<?= http_build_query(array_merge($_GET, ['page' => $i])) ?>"><?= $i ?></a>
-          </li>
-        <?php elseif ($i === $page - 3 || $i === $page + 3): ?>
-          <li class="page-item disabled"><span class="page-link">...</span></li>
-        <?php endif; ?>
-      <?php endfor; ?>
-      <li class="page-item <?= $page === $totalPages ? 'disabled' : '' ?>">
-        <a class="page-link" href="?<?= http_build_query(array_merge($_GET, ['page' => $page + 1])) ?>">Next</a>
-      </li>
-    </ul>
-  </nav>
-<?php endif; ?>
-</div>
-
 <div class="modal fade" id="productModal" tabindex="-1" aria-labelledby="productModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-lg">
     <div class="modal-content">
@@ -334,8 +240,16 @@ document.addEventListener('DOMContentLoaded', function(){
             </div>
             <?php 
               $isAdminView = isset($_SESSION['role']) && in_array($_SESSION['role'], ['staff_user','administrator','admin_sec']);
+              $isGuestUser = isset($_SESSION['role']) && $_SESSION['role'] === 'guest_user';
+              $isRegularUser = isset($_SESSION['role']) && $_SESSION['role'] === 'regular_user';
               if (!$isAdminView): 
             ?>
+              <?php if ($isGuestUser): ?>
+                <div class="alert alert-warning" role="alert">
+                  <i class="fas fa-exclamation-triangle me-2"></i>
+                  Please verify your email to add items to cart.
+                </div>
+              <?php elseif ($isRegularUser): ?>
               <div class="mb-4">
                 <label class="form-label fw-bold">Quantity</label>
                 <div class="quantity-selector d-flex align-items-center gap-3">
@@ -351,6 +265,7 @@ document.addEventListener('DOMContentLoaded', function(){
               <button type="button" class="btn btn-primary w-100 btn-lg" id="addToCartBtn" data-product-id="">
                 <i class="fas fa-shopping-cart me-2"></i>Add to Cart
               </button>
+              <?php endif; ?>
             <?php endif; ?>
           </div>
         </div>
@@ -451,7 +366,7 @@ document.addEventListener('DOMContentLoaded', function() {
   
   const addBtn = document.getElementById('addToCartBtn');
   if (addBtn) addBtn.addEventListener('click', function() {
-    <?php if (isset($_SESSION['user_id'])): ?>
+    <?php if (isset($_SESSION['user_id']) && $_SESSION['role'] === 'regular_user'): ?>
     const productId = this.getAttribute('data-product-id');
     const quantity = parseInt((document.getElementById('modalQuantity')||{value:1}).value) || 1;
     

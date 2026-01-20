@@ -18,6 +18,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             echo json_encode(['success' => false, 'message' => "This account is locked. Try again in $minutes minutes."]);
             exit();
         } elseif (password_verify($password, $user['password_hash'])) {
+            if ($user['role'] === 'guest_user' && $user['otp_code'] !== null) {
+                $_SESSION['otp_user_id'] = $user['id'];
+                $_SESSION['otp_email'] = $user['email'];
+                echo json_encode(['success' => false, 'message' => 'Please verify your email first.', 'require_otp' => true]);
+                exit();
+            }
             $stmt2 = $conn->prepare("UPDATE users SET failed_logins = 0, lockout_until = NULL WHERE id=?");
             $stmt2->bind_param("i", $user['id']);
             $stmt2->execute();

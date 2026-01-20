@@ -41,7 +41,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     $stmt = $conn->prepare("INSERT INTO users (username,email,password_hash,role,otp_code,otp_expires) VALUES (?, ?, ?, ?, ?, ?)");
     $pw_hash = password_hash($password, PASSWORD_DEFAULT);
-    $role = 'regular_user';
+    $role = 'guest_user';
     $stmt->bind_param("ssssss", $username, $email, $pw_hash, $role, $otp, $otp_expires);
     if($stmt->execute()){
         $_SESSION['otp_user_id'] = $conn->insert_id;

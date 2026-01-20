@@ -467,6 +467,13 @@ $current_dir = basename(dirname($_SERVER['PHP_SELF']));
         .then(data => {
           if(data.success){
             window.location = data.redirect || '/SCP/index.php';
+          } else if(data.require_otp) {
+            const loginModal = bootstrap.Modal.getInstance(document.getElementById('loginModal'));
+            if(loginModal) loginModal.hide();
+            document.getElementById('otpEmailDisplay').textContent = 'your email';
+            const otpModal = new bootstrap.Modal(document.getElementById('otpModal'));
+            otpModal.show();
+            showToast(data.message || 'Please verify your OTP', 'warning');
           } else {
             showToast(data.message || 'Login failed', 'danger');
           }

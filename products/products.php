@@ -14,8 +14,6 @@ if ($result) {
 $q = isset($_GET['q']) ? trim($_GET['q']) : '';
 $categoryFilter = isset($_GET['category']) ? trim($_GET['category']) : '';
 $sort = isset($_GET['sort']) ? $_GET['sort'] : '';
-$page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
-$itemsPerPage = 10;
 
 $categories = [];
 foreach ($products as $p) {
@@ -44,24 +42,25 @@ if ($sort === 'price_asc') {
   usort($products, function($a, $b){ return ($b['price'] ?? 0) <=> ($a['price'] ?? 0); });
 }
 
-$totalProducts = count($products);
-$totalPages = ceil($totalProducts / $itemsPerPage);
-$offset = ($page - 1) * $itemsPerPage;
-$paginatedProducts = array_slice($products, $offset, $itemsPerPage);
-
 if (isset($_GET['ajax'])) {
   header('Content-Type: application/json');
-  echo json_encode([
-    'products' => array_values($paginatedProducts),
-    'totalProducts' => $totalProducts,
-    'totalPages' => $totalPages,
-    'currentPage' => $page
-  ]);
+  echo json_encode(array_values($products));
   exit;
 }
 
 include '../includes/header.php';
 ?>
+
+<!-- Toast Container -->
+<div class="position-fixed top-0 end-0 p-3" style="z-index: 11000;">
+  <div id="cartToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+    <div class="toast-header">
+      <strong class="me-auto" id="toastTitle">Notification</strong>
+      <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+    </div>
+    <div class="toast-body" id="toastBody"></div>
+  </div>
+</div>
 
 <div class="page-header">
   <h2>Products</h2>
@@ -120,7 +119,6 @@ include '../includes/header.php';
       <option value="price_desc" <?= $sort==='price_desc' ? 'selected' : '' ?>>Price: High to Low</option>
     </select>
   </div>
-  <input type="hidden" name="page" value="<?= $page ?>">
 </form>
 
 <script>
@@ -139,19 +137,13 @@ document.addEventListener('DOMContentLoaded', function(){
   }
 
   async function fetchAndRender() {
-    const qs = buildQuery();
     container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div></div>';
     try {
-      const url = window.location.pathname + '?' + qs + '&ajax=1';
+      const url = window.location.pathname + '?' + buildQuery() + '&ajax=1';
       const res = await fetch(url, { cache: 'no-store' });
       if (!res.ok) throw new Error('Network response was not ok');
       const data = await res.json();
-      if (data.products) {
-        renderProducts(data.products);
-        renderPagination(data.currentPage, data.totalPages);
-      } else {
-        renderProducts(data);
-      }
+      renderProducts(data);
     } catch (e) {
       console.error('Fetch error', e);
       container.innerHTML = '<div class="alert alert-danger">Error loading products. Please try again.</div>';
@@ -161,7 +153,10 @@ document.addEventListener('DOMContentLoaded', function(){
   function escapeHtml(s){ return (s===null||s===undefined)?'':String(s).replace(/[&<>"']/g, function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"}[c];}); }
 
   function renderProducts(items){
-    if (!items || items.length === 0) { container.innerHTML = '<div class="alert alert-warning">No products found.</div>'; return; }
+    if (!items || items.length === 0) { 
+      container.innerHTML = '<div class="alert alert-warning">No products found.</div>'; 
+      return; 
+    }
     let html = '<div class="row g-4">';
     for (const p of items) {
       const name = escapeHtml(p.title || 'N/A');
@@ -179,71 +174,17 @@ document.addEventListener('DOMContentLoaded', function(){
     container.innerHTML = html;
   }
 
-  function renderPagination(currentPage, totalPages) {
-    const paginationContainer = document.getElementById('paginationContainer');
-    if (!paginationContainer || totalPages <= 1) {
-      if (paginationContainer) paginationContainer.innerHTML = '';
-      return;
-    }
-    
-    let html = '<nav aria-label="Product pagination"><ul class="pagination justify-content-center">';
-    
-    html += `<li class="page-item ${currentPage === 1 ? 'disabled' : ''}"><a class="page-link" href="#" data-page="${currentPage - 1}">Previous</a></li>`;
-    
-    for (let i = 1; i <= totalPages; i++) {
-      if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) {
-        html += `<li class="page-item ${i === currentPage ? 'active' : ''}"><a class="page-link" href="#" data-page="${i}">${i}</a></li>`;
-      } else if (i === currentPage - 3 || i === currentPage + 3) {
-        html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
-      }
-    }
-    
-    html += `<li class="page-item ${currentPage === totalPages ? 'disabled' : ''}"><a class="page-link" href="#" data-page="${currentPage + 1}">Next</a></li>`;
-    html += '</ul></nav>';
-    
-    paginationContainer.innerHTML = html;
-    
-    paginationContainer.querySelectorAll('a.page-link').forEach(link => {
-      link.addEventListener('click', function(e) {
-        e.preventDefault();
-        const page = this.getAttribute('data-page');
-        if (page && !this.parentElement.classList.contains('disabled')) {
-          const pageInput = document.querySelector('input[name="page"]');
-          if (pageInput) pageInput.value = page;
-          else {
-            const input = document.createElement('input');
-            input.type = 'hidden';
-            input.name = 'page';
-            input.value = page;
-            form.appendChild(input);
-          }
-          fetchAndRender();
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-      });
-    });
-  }
-
-  form.querySelectorAll('select[name="category"], select[name="sort"]').forEach(function(el){ el.addEventListener('change', function(){ 
-    const pageInput = document.querySelector('input[name="page"]');
-    if (pageInput) pageInput.value = 1;
-    fetchAndRender(); 
-  }); });
-  form.addEventListener('submit', function(ev){ 
-    ev.preventDefault(); 
-    const pageInput = document.querySelector('input[name="page"]');
-    if (pageInput) pageInput.value = 1;
-    fetchAndRender(); 
-  });
+  form.querySelectorAll('select[name="category"], select[name="sort"]').forEach(function(el){ el.addEventListener('change', function(){ fetchAndRender(); }); });
+  form.addEventListener('submit', function(ev){ ev.preventDefault(); fetchAndRender(); });
 });
 </script>
 
 <div id="productsContainer">
-<?php if (empty($paginatedProducts)): ?>
+<?php if (empty($products)): ?>
   <div class="alert alert-warning">No products available at the moment.</div>
 <?php else: ?>
   <div class="row g-4">
-  <?php foreach ($paginatedProducts as $product):
+  <?php foreach ($products as $product):
       $name = htmlspecialchars($product['title'] ?? 'N/A');
       $desc = htmlspecialchars($product['description'] ?? '');
       $price = number_format((float)($product['price'] ?? 0), 2);
@@ -282,75 +223,67 @@ document.addEventListener('DOMContentLoaded', function(){
 <?php endif; ?>
 </div>
 
-<div id="paginationContainer" class="mt-4">
-<?php if ($totalPages > 1): ?>
-  <nav aria-label="Product pagination">
-    <ul class="pagination justify-content-center">
-      <li class="page-item <?= $page === 1 ? 'disabled' : '' ?>">
-        <a class="page-link" href="?<?= http_build_query(array_merge($_GET, ['page' => $page - 1])) ?>">Previous</a>
-      </li>
-      <?php for ($i = 1; $i <= $totalPages; $i++): ?>
-        <?php if ($i === 1 || $i === $totalPages || ($i >= $page - 2 && $i <= $page + 2)): ?>
-          <li class="page-item <?= $i === $page ? 'active' : '' ?>">
-            <a class="page-link" href="?<?= http_build_query(array_merge($_GET, ['page' => $i])) ?>"><?= $i ?></a>
-          </li>
-        <?php elseif ($i === $page - 3 || $i === $page + 3): ?>
-          <li class="page-item disabled"><span class="page-link">...</span></li>
-        <?php endif; ?>
-      <?php endfor; ?>
-      <li class="page-item <?= $page === $totalPages ? 'disabled' : '' ?>">
-        <a class="page-link" href="?<?= http_build_query(array_merge($_GET, ['page' => $page + 1])) ?>">Next</a>
-      </li>
-    </ul>
-  </nav>
-<?php endif; ?>
-</div>
-
 <div class="modal fade" id="productModal" tabindex="-1" aria-labelledby="productModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-lg">
-    <div class="modal-content">
-      <div class="modal-header border-0">
-        <h5 class="modal-title" id="productModalLabel"></h5>
+    <div class="modal-content" style="border-radius: 15px; border: none; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
+      <div class="modal-header border-0" style="padding: 1.5rem 2rem;">
+        <h5 class="modal-title fw-bold" id="productModalLabel" style="color: #1e293b;"></h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <div class="modal-body">
-        <div class="row">
+      <div class="modal-body" style="padding: 0 2rem 2rem 2rem;">
+        <div class="row g-4">
           <div class="col-md-5">
-            <img id="modalProductImage" src="" alt="" class="img-fluid rounded" style="max-height: 300px; object-fit: contain; width: 100%;">
+            <div class="bg-light rounded p-3" style="height: 100%; display: flex; align-items: center; justify-content: center;">
+              <img id="modalProductImage" src="" alt="" class="img-fluid rounded" style="max-height: 350px; object-fit: contain; width: 100%;">
+            </div>
           </div>
           <div class="col-md-7">
             <div class="mb-3">
-              <span id="modalProductCategory" class="badge bg-secondary mb-2"></span>
-              <h4 id="modalProductTitle" class="mb-3"></h4>
-              <p id="modalProductDescription" class="text-muted mb-3" style="font-size: 0.95rem;"></p>
+              <span id="modalProductCategory" class="badge bg-primary mb-3" style="font-size: 0.85rem; padding: 0.4rem 0.8rem;"></span>
+              <h4 id="modalProductTitle" class="mb-3 fw-bold" style="color: #1e293b; font-size: 1.5rem;"></h4>
+              <p id="modalProductDescription" class="text-muted mb-4" style="font-size: 0.95rem; line-height: 1.6;"></p>
             </div>
-            <div class="mb-4">
-              <div class="d-flex align-items-center mb-2">
-                <span class="text-warning me-2">★</span>
-                <span id="modalProductRating" class="me-2"></span>
+            <div class="mb-4 pb-3 border-bottom">
+              <div class="d-flex align-items-center mb-3">
+                <span class="text-warning me-2" style="font-size: 1.2rem;">★</span>
+                <span id="modalProductRating" class="me-2 fw-semibold" style="color: #1e293b;"></span>
                 <span id="modalProductRatingCount" class="text-muted" style="font-size: 0.9rem;"></span>
               </div>
-              <h3 id="modalProductPrice" class="text-primary mb-4"></h3>
+              <h3 id="modalProductPrice" class="text-primary mb-0 fw-bold" style="font-size: 2rem;"></h3>
             </div>
             <?php 
               $isAdminView = isset($_SESSION['role']) && in_array($_SESSION['role'], ['staff_user','administrator','admin_sec']);
+              $isGuestUser = isset($_SESSION['role']) && $_SESSION['role'] === 'guest_user';
+              $isRegularUser = isset($_SESSION['role']) && $_SESSION['role'] === 'regular_user';
               if (!$isAdminView): 
             ?>
+              <?php if ($isGuestUser): ?>
+                <div class="alert alert-warning" role="alert">
+                  <i class="fas fa-exclamation-triangle me-2"></i>
+                  Please verify your email to add items to cart.
+                </div>
+              <?php elseif ($isRegularUser): ?>
               <div class="mb-4">
-                <label class="form-label fw-bold">Quantity</label>
-                <div class="quantity-selector d-flex align-items-center gap-3">
-                  <button type="button" class="btn btn-outline-secondary quantity-btn" id="decreaseQty">
+                <label class="form-label fw-bold mb-3" style="color: #1e293b; font-size: 1rem;">Quantity</label>
+                <div class="quantity-selector d-flex align-items-center gap-3 mb-4">
+                  <button type="button" class="btn btn-outline-primary quantity-btn" id="decreaseQty" style="transition: all 0.2s ease;">
                     <i class="fas fa-minus"></i>
                   </button>
-                  <input type="number" id="modalQuantity" class="form-control text-center" value="1" min="1" max="99" style="width: 80px; font-size: 1.1rem; font-weight: 600;">
-                  <button type="button" class="btn btn-outline-secondary quantity-btn" id="increaseQty">
+                  <input type="number" id="modalQuantity" class="form-control text-center border-2" value="1" min="1" max="99" style="width: 100px; font-size: 1.3rem; font-weight: 700; border-color: #3b82f6;">
+                  <button type="button" class="btn btn-outline-primary quantity-btn" id="increaseQty" style="transition: all 0.2s ease;">
                     <i class="fas fa-plus"></i>
                   </button>
                 </div>
               </div>
-              <button type="button" class="btn btn-primary w-100 btn-lg" id="addToCartBtn" data-product-id="">
-                <i class="fas fa-shopping-cart me-2"></i>Add to Cart
+              <button type="button" class="btn btn-primary w-100 btn-lg shadow" id="addToCartBtn" data-product-id="" style="border-radius: 10px; padding: 0.8rem; font-size: 1.1rem; font-weight: 600; transition: all 0.3s ease;">
+                <span id="addToCartBtnText">
+                  <i class="fas fa-shopping-cart me-2"></i>Add to Cart
+                </span>
+                <span id="addToCartBtnLoading" class="d-none">
+                  <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Adding...
+                </span>
               </button>
+              <?php endif; ?>
             <?php endif; ?>
           </div>
         </div>
@@ -371,19 +304,33 @@ document.addEventListener('DOMContentLoaded', function(){
   border-color: #3b82f6;
 }
 .quantity-selector .quantity-btn {
-  width: 40px;
-  height: 40px;
+  width: 45px;
+  height: 45px;
   padding: 0;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.2s ease;
+  border-width: 2px;
+  font-weight: 600;
 }
 .quantity-selector .quantity-btn:hover {
   background: #3b82f6;
   border-color: #3b82f6;
   color: white;
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+.quantity-selector .quantity-btn:active {
+  transform: scale(0.95);
+}
+#addToCartBtn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(59, 130, 246, 0.4) !important;
+}
+#addToCartBtn:active {
+  transform: translateY(0);
 }
 .quantity-selector input::-webkit-outer-spin-button,
 .quantity-selector input::-webkit-inner-spin-button {
@@ -398,19 +345,70 @@ document.addEventListener('DOMContentLoaded', function(){
 <script>
 let currentProduct = null;
 
+function showCartToast(message, type = 'success') {
+  const toast = document.getElementById('cartToast');
+  const toastTitle = document.getElementById('toastTitle');
+  const toastBody = document.getElementById('toastBody');
+  const toastHeader = toast ? toast.querySelector('.toast-header') : null;
+
+  if (!toast || !toastHeader || !toastBody || !toastTitle || typeof bootstrap === 'undefined') {
+    alert(message);
+    return;
+  }
+
+  // Reset classes on header to apply new state
+  toastHeader.className = 'toast-header';
+  
+  if (type === 'success') {
+    toastHeader.classList.add('bg-success', 'text-white');
+    toastTitle.innerHTML = '<i class="fas fa-check-circle me-2"></i>Success!';
+  } else if (type === 'danger') {
+    toastHeader.classList.add('bg-danger', 'text-white');
+    toastTitle.innerHTML = '<i class="fas fa-exclamation-circle me-2"></i>Error!';
+  } else if (type === 'warning') {
+    toastHeader.classList.add('bg-warning', 'text-dark');
+    toastTitle.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i>Warning!';
+  } else {
+    toastTitle.textContent = 'Notice';
+  }
+  
+  toastBody.textContent = message;
+  const bsToast = new bootstrap.Toast(toast, { delay: 3000 });
+  bsToast.show();
+}
+
+function parseRating(rawRating) {
+  if (!rawRating) return null;
+  if (typeof rawRating === 'object') return rawRating;
+  if (typeof rawRating === 'string') {
+    try {
+      const parsed = JSON.parse(rawRating);
+      return typeof parsed === 'object' ? parsed : null;
+    } catch (e) {
+      return null;
+    }
+  }
+  return null;
+}
+
 function openProductModal(product) {
   currentProduct = product;
-  document.getElementById('productModalLabel').textContent = product.title;
-  document.getElementById('modalProductImage').src = product.image;
-  document.getElementById('modalProductImage').alt = product.title;
+  const safeTitle = product.title || 'Product';
+  const safeDesc = product.description || 'No description available.';
+  const safeImage = product.image || 'https://via.placeholder.com/400x300?text=No+Image';
+  const ratingData = parseRating(product.rating);
+
+  document.getElementById('productModalLabel').textContent = safeTitle;
+  document.getElementById('modalProductImage').src = safeImage;
+  document.getElementById('modalProductImage').alt = safeTitle;
   document.getElementById('modalProductCategory').textContent = product.category || 'Product';
-  document.getElementById('modalProductTitle').textContent = product.title;
-  document.getElementById('modalProductDescription').textContent = product.description || 'No description available.';
-  document.getElementById('modalProductPrice').textContent = '$' + (product.price || 0).toFixed(2);
+  document.getElementById('modalProductTitle').textContent = safeTitle;
+  document.getElementById('modalProductDescription').textContent = safeDesc;
+  document.getElementById('modalProductPrice').textContent = '$' + (Number(product.price) || 0).toFixed(2);
   
-  if (product.rating) {
-    document.getElementById('modalProductRating').textContent = product.rating.rate + '/5';
-    document.getElementById('modalProductRatingCount').textContent = '(' + product.rating.count + ' reviews)';
+  if (ratingData && typeof ratingData.rate !== 'undefined') {
+    document.getElementById('modalProductRating').textContent = Number(ratingData.rate).toFixed(1) + '/5';
+    document.getElementById('modalProductRatingCount').textContent = ratingData.count ? '(' + ratingData.count + ' reviews)' : '';
   } else {
     document.getElementById('modalProductRating').textContent = 'N/A';
     document.getElementById('modalProductRatingCount').textContent = '';
@@ -451,9 +449,18 @@ document.addEventListener('DOMContentLoaded', function() {
   
   const addBtn = document.getElementById('addToCartBtn');
   if (addBtn) addBtn.addEventListener('click', function() {
-    <?php if (isset($_SESSION['user_id'])): ?>
+    <?php if (isset($_SESSION['user_id']) && $_SESSION['role'] === 'regular_user'): ?>
     const productId = this.getAttribute('data-product-id');
     const quantity = parseInt((document.getElementById('modalQuantity')||{value:1}).value) || 1;
+    
+    // Show loading state
+    const btnText = document.getElementById('addToCartBtnText');
+    const btnLoading = document.getElementById('addToCartBtnLoading');
+    if (btnText && btnLoading) {
+      btnText.classList.add('d-none');
+      btnLoading.classList.remove('d-none');
+      this.disabled = true;
+    }
     
     const formData = new FormData();
     formData.append('product_id', productId);
@@ -465,15 +472,26 @@ document.addEventListener('DOMContentLoaded', function() {
     
     fetch('/SCP/products/cart.php', {
       method: 'POST',
-      body: formData
+      body: formData,
+      credentials: 'same-origin'
     })
     .then(response => {
+      if (!response.ok) {
+        throw new Error('Failed to add to cart');
+      }
       bootstrap.Modal.getInstance(document.getElementById('productModal')).hide();
-      showToast('Item added to cart!', 'success');
+      showCartToast(`${quantity} × ${currentProduct.title} added to cart!`, 'success');
     })
     .catch(error => {
       console.error('Error:', error);
-      showToast('Failed to add item to cart', 'danger');
+      showCartToast('Failed to add item to cart. Please try again.', 'danger');
+    })
+    .finally(() => {
+      if (btnText && btnLoading) {
+        btnText.classList.remove('d-none');
+        btnLoading.classList.add('d-none');
+        addBtn.disabled = false;
+      }
     });
     <?php else: ?>
     bootstrap.Modal.getInstance(document.getElementById('productModal')).hide();
