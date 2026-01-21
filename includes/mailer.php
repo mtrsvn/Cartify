@@ -1,6 +1,7 @@
 <?php
 function send_otp_email(string $toEmail, string $toName, string $otp): array {
-    $devMode = getenv('MAIL_DEV_MODE') ?: false;
+    $devEnv = getenv('MAIL_DEV_MODE');
+    $devMode = $devEnv !== false ? filter_var($devEnv, FILTER_VALIDATE_BOOLEAN) : false;
     
     if ($devMode) {
         $logFile = __DIR__ . '/../otp_logs.txt';
@@ -133,12 +134,24 @@ function send_otp_email(string $toEmail, string $toName, string $otp): array {
     $logEntry = sprintf("[%s] Fallback OTP (send failed). Email: %s | Name: %s | OTP: %s\n",
         date('Y-m-d H:i:s'), $toEmail, $toName, $otp);
     @file_put_contents($logFile, $logEntry, FILE_APPEND);
-    
+
+    // If running locally, allow OTP flow to continue using the logged code
+    $server = $_SERVER['SERVER_NAME'] ?? '';
+    $host   = $_SERVER['HTTP_HOST'] ?? '';
+    $addr   = $_SERVER['REMOTE_ADDR'] ?? '';
+    $isLocal = in_array($server, ['localhost', '127.0.0.1'], true)
+        || in_array($host, ['localhost', '127.0.0.1'], true)
+        || in_array($addr, ['127.0.0.1', '::1'], true);
+    if ($isLocal) {
+        return ['success' => true, 'error' => null, 'dev_mode' => 'local-fallback'];
+    }
+
     return ['success' => false, 'error' => $errorMsg];
 }
 
 function send_purchase_confirmation_email(string $toEmail, string $toName, array $items, float $total): array {
-    $devMode = getenv('MAIL_DEV_MODE') ?: false;
+    $devEnv = getenv('MAIL_DEV_MODE');
+    $devMode = $devEnv !== false ? filter_var($devEnv, FILTER_VALIDATE_BOOLEAN) : false;
     
     if ($devMode) {
         $logFile = __DIR__ . '/../otp_logs.txt';
@@ -275,7 +288,8 @@ function send_purchase_confirmation_email(string $toEmail, string $toName, array
 }
 
 function send_purchase_rejection_email(string $toEmail, string $toName, array $items, float $total = 0.0, string $reason = ''): array {
-    $devMode = getenv('MAIL_DEV_MODE') ?: false;
+    $devEnv = getenv('MAIL_DEV_MODE');
+    $devMode = $devEnv !== false ? filter_var($devEnv, FILTER_VALIDATE_BOOLEAN) : false;
 
     if ($devMode) {
         $logFile = __DIR__ . '/../mail_dev.log';

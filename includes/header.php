@@ -366,7 +366,6 @@ $current_dir = basename(dirname($_SERVER['PHP_SELF']));
             <input type="text" class="form-control otp-input" inputmode="numeric" pattern="\d*" maxlength="1" aria-label="Digit 5">
             <input type="text" class="form-control otp-input" inputmode="numeric" pattern="\d*" maxlength="1" aria-label="Digit 6">
           </div>
-          <p class="text-center mb-3" style="color: #64748b; font-size: 0.9rem;">Didn't get a code? <a href="#" id="resendOtpLink">resend</a></p>
           <input type="hidden" name="otp_code" id="otpHidden">
           <button type="submit" class="btn btn-primary w-100">Verify email</button>
         </form>

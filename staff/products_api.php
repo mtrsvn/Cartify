@@ -15,6 +15,23 @@ if (!in_array($_SESSION['role'], ['staff_user','administrator','admin_sec'], tru
 
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
 
+// Ensure the products table has a display_order column for stable ordering
+function ensureDisplayOrderColumn(mysqli $conn): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+
+    $colRes = $conn->query("SHOW COLUMNS FROM products LIKE 'display_order'");
+    if ($colRes && $colRes->num_rows > 0) {
+        return;
+    }
+
+    // Add the column and initialize with a sensible default
+    $conn->query("ALTER TABLE products ADD COLUMN display_order INT NOT NULL DEFAULT 0");
+    // Initialize order to current id ordering to avoid all zeros
+    $conn->query("UPDATE products SET display_order = id WHERE display_order = 0 OR display_order IS NULL");
+}
+
 switch ($action) {
     case 'list':
         listProducts($conn);
@@ -39,8 +56,9 @@ switch ($action) {
 }
 
 function listProducts($conn) {
-    // Show newest products first in the management UI
-    $result = $conn->query("SELECT * FROM products ORDER BY id DESC");
+    ensureDisplayOrderColumn($conn);
+    // Show by configured display order, then id for stability
+    $result = $conn->query("SELECT * FROM products ORDER BY display_order ASC, id ASC");
     if (!$result) {
         echo json_encode(['success' => false, 'message' => 'Database error']);
         return;
@@ -73,6 +91,7 @@ function getProduct($conn) {
 }
 
 function addProduct($conn, $user_id) {
+    ensureDisplayOrderColumn($conn);
     $title = trim($_POST['title'] ?? '');
     $price = floatval($_POST['price'] ?? 0);
     $category = trim($_POST['category'] ?? '');
@@ -84,8 +103,13 @@ function addProduct($conn, $user_id) {
         return;
     }
 
-    $stmt = $conn->prepare("INSERT INTO products (title, price, category, description, image) VALUES (?, ?, ?, ?, ?)");
-    $stmt->bind_param('sdsss', $title, $price, $category, $description, $image);
+    // Determine next display order (append to end)
+    $maxRes = $conn->query("SELECT COALESCE(MAX(display_order), 0) AS max_order FROM products");
+    $row = $maxRes ? $maxRes->fetch_assoc() : ['max_order' => 0];
+    $nextOrder = (int)($row['max_order'] ?? 0) + 1;
+
+    $stmt = $conn->prepare("INSERT INTO products (title, price, category, description, image, display_order) VALUES (?, ?, ?, ?, ?, ?)");
+    $stmt->bind_param('sdsssi', $title, $price, $category, $description, $image, $nextOrder);
     
     if ($stmt->execute()) {
         $new_id = $conn->insert_id;
@@ -157,6 +181,7 @@ function deleteProduct($conn, $user_id) {
 }
 
 function reorderProducts($conn, $user_id) {
+    ensureDisplayOrderColumn($conn);
     $orderJson = $_POST['order'] ?? '';
     
     $order = json_decode($orderJson, true);

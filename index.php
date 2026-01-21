@@ -4,7 +4,7 @@ require_once 'includes/db.php';
 require_once 'includes/functions.php';
 
 $products = [];
-$result = $conn->query("SELECT * FROM products ORDER BY id DESC");
+$result = $conn->query("SELECT * FROM products ORDER BY display_order ASC, id ASC");
 if ($result) {
     while ($row = $result->fetch_assoc()) {
         $products[] = $row;
