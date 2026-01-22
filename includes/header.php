@@ -250,6 +250,15 @@ $current_dir = basename(dirname($_SERVER['PHP_SELF']));
           <li class="nav-item"><a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#loginModal">Login</a></li>
           <li class="nav-item"><a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#registerModal">Register</a></li>
         <?php endif; ?>
+        <li class="nav-item dropdown ms-2">
+          <a class="nav-link dropdown-toggle" href="#" id="currencyDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            Currency: <span data-currency-label>USD</span>
+          </a>
+          <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="currencyDropdown">
+            <li><a class="dropdown-item" href="#" data-currency-option="USD">USD - $</a></li>
+            <li><a class="dropdown-item" href="#" data-currency-option="PHP">PHP - ₱</a></li>
+          </ul>
+        </li>
       </ul>
     </div>
   </div>
@@ -412,6 +421,81 @@ $current_dir = basename(dirname($_SERVER['PHP_SELF']));
     });
   }
 
+  const currencyApiUrl = 'https://api.exchangerate.host/latest?base=USD&symbols=USD,PHP';
+  const currencyState = { current: 'USD', rates: { USD: 1, PHP: null }, lastFetched: 0 };
+
+  function formatCurrencyAmount(amountUsd, currencyCode) {
+    const code = currencyCode === 'PHP' ? 'PHP' : 'USD';
+    const rate = code === 'USD' ? 1 : (currencyState.rates.PHP || 1);
+    const formatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: code });
+    return formatter.format(amountUsd * rate);
+  }
+
+  async function fetchCurrencyRates(force = false) {
+    const sixHours = 6 * 60 * 60 * 1000;
+    if (currencyState.rates.PHP && !force && (Date.now() - currencyState.lastFetched) < sixHours) return;
+    try {
+      const res = await fetch(currencyApiUrl, { cache: 'no-store' });
+      if (!res.ok) throw new Error('Bad response');
+      const data = await res.json();
+      const rate = data && data.rates && data.rates.PHP ? Number(data.rates.PHP) : NaN;
+      if (!Number.isFinite(rate)) throw new Error('Missing PHP rate');
+      currencyState.rates.PHP = rate;
+      currencyState.lastFetched = Date.now();
+      localStorage.setItem('cartifyRatePHP', String(rate));
+    } catch (err) {
+      const cached = parseFloat(localStorage.getItem('cartifyRatePHP'));
+      if (Number.isFinite(cached)) {
+        currencyState.rates.PHP = cached;
+      } else if (!currencyState.rates.PHP) {
+        currencyState.rates.PHP = 56; // fallback to a reasonable default
+      }
+      console.warn('Currency rate fetch failed, using cached/fallback rate.', err);
+    }
+  }
+
+  function updateCurrencyLabels(selectedCode) {
+    document.querySelectorAll('[data-currency-label]').forEach(el => {
+      el.textContent = selectedCode;
+    });
+    document.querySelectorAll('[data-currency-option]').forEach(item => {
+      if (!item.dataset) return;
+      item.classList.toggle('active', item.dataset.currencyOption === selectedCode);
+    });
+  }
+
+  function applyCurrencyToElements(root = document) {
+    const rootNode = root || document;
+    const nodes = [];
+    if (rootNode.dataset && typeof rootNode.dataset.amountUsd !== 'undefined') {
+      nodes.push(rootNode);
+    }
+    if (rootNode.querySelectorAll) {
+      rootNode.querySelectorAll('[data-amount-usd]').forEach(el => nodes.push(el));
+    }
+    nodes.forEach(el => {
+      const amt = parseFloat(el.dataset.amountUsd);
+      if (!Number.isFinite(amt)) return;
+      el.textContent = formatCurrencyAmount(amt, currencyState.current);
+    });
+    updateCurrencyLabels(currencyState.current);
+  }
+
+  async function setCurrency(currencyCode) {
+    const target = currencyCode === 'PHP' ? 'PHP' : 'USD';
+    currencyState.current = target;
+    localStorage.setItem('cartifyCurrency', target);
+    await fetchCurrencyRates();
+    applyCurrencyToElements();
+  }
+
+  window.cartifyCurrency = {
+    setCurrency,
+    applyCurrencyToElements,
+    format(amount) { return formatCurrencyAmount(amount, currencyState.current); },
+    getCurrency() { return currencyState.current; }
+  };
+
   function togglePassword(inputId, iconElement) {
     const input = document.getElementById(inputId);
     const icon = iconElement.querySelector('i');
@@ -458,6 +542,21 @@ $current_dir = basename(dirname($_SERVER['PHP_SELF']));
   }
 
   document.addEventListener('DOMContentLoaded', function(){
+    const savedCurrency = localStorage.getItem('cartifyCurrency') || 'USD';
+    if (window.cartifyCurrency) {
+      window.cartifyCurrency.setCurrency(savedCurrency).catch(() => {
+        window.cartifyCurrency.applyCurrencyToElements();
+      });
+    }
+    document.querySelectorAll('[data-currency-option]').forEach(item => {
+      item.addEventListener('click', function(e){
+        e.preventDefault();
+        if (window.cartifyCurrency) {
+          window.cartifyCurrency.setCurrency(this.dataset.currencyOption || 'USD');
+        }
+      });
+    });
+
     const loginForm = document.getElementById('loginForm');
     if(loginForm){
       loginForm.addEventListener('submit', function(e){

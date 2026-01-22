@@ -165,17 +165,20 @@ document.addEventListener('DOMContentLoaded', function(){
     for (const p of items) {
       const name = escapeHtml(p.title || 'N/A');
       const desc = escapeHtml(p.description || '');
-      const price = (typeof p.price !== 'undefined') ? Number(p.price).toFixed(2) : '0.00';
+      const priceValue = (typeof p.price !== 'undefined') ? Number(p.price) : 0;
+      const price = priceValue.toFixed(2);
       const id = parseInt(p.id) || 0;
       const image = escapeHtml(p.image || '');
       const category = escapeHtml(p.category || '');
       const rating = (p.rating && p.rating.rate) ? Number(p.rating.rate).toFixed(1) : '';
       const productJson = JSON.stringify(p).replace(/'/g, '&apos;').replace(/"/g, '&quot;');
-      html += `\n<div class="col-md-4">\n  <div class="card h-100 product-card" onclick='openProductModal(${productJson})'>\n    ${image?`<img src="${image}" class="card-img-top" alt="${name}" style="height: 250px; object-fit: contain; padding: 1rem;">` : ''}\n    <div class="card-body d-flex flex-column">\n      ${category?`<span class="badge bg-secondary mb-2 align-self-start">${category}</span>` : ''}\n      <h5 class="card-title mb-2" style="min-height: 3rem; font-size: 1rem;">${name}</h5>\n      <p class="card-text" style="color: #64748b; flex-grow: 1; font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">${desc.length>100?desc.substr(0,100)+'...':desc}</p>\n      <div class="mt-auto">\n        <div class="d-flex justify-content-between align-items-center">\n          <strong class="text-primary" style="font-size: 1.25rem;">$${price}</strong>\n          ${rating?`<span class="text-muted" style="font-size: 0.85rem;"><span class="text-warning">★</span> ${rating}</span>`:''}
         </div>\n      </div>\n    </div>\n  </div>\n</div>`;
     }
     html += '\n</div>';
     container.innerHTML = html;
+    if (window.cartifyCurrency) {
+      window.cartifyCurrency.applyCurrencyToElements(container);
+    }
   }
 
   form.querySelectorAll('select[name="category"], select[name="sort"]').forEach(function(el){ el.addEventListener('change', function(){ fetchAndRender(); }); });
@@ -191,7 +194,8 @@ document.addEventListener('DOMContentLoaded', function(){
   <?php foreach ($products as $product):
       $name = htmlspecialchars($product['title'] ?? 'N/A');
       $desc = htmlspecialchars($product['description'] ?? '');
-      $price = number_format((float)($product['price'] ?? 0), 2);
+      $priceValue = (float)($product['price'] ?? 0);
+      $price = number_format($priceValue, 2);
       $id = (int)($product['id'] ?? 0);
       $image = htmlspecialchars($product['image'] ?? '');
       $category = htmlspecialchars($product['category'] ?? '');
@@ -211,7 +215,7 @@ document.addEventListener('DOMContentLoaded', function(){
           <p class="card-text" style="color: #64748b; flex-grow: 1; font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;"><?= strlen($desc) > 100 ? substr($desc, 0, 100) . '...' : $desc ?></p>
           <div class="mt-auto">
             <div class="d-flex justify-content-between align-items-center">
-              <strong class="text-primary" style="font-size: 1.25rem;">$<?= $price ?></strong>
+              <strong class="text-primary currency-amount" data-amount-usd="<?= $priceValue ?>" style="font-size: 1.25rem;">$<?= $price ?></strong>
               <?php if ($rating): ?>
               <span class="text-muted" style="font-size: 0.85rem;">
                 <span class="text-warning">★</span> <?= $rating ?>
@@ -407,7 +411,16 @@ function openProductModal(product) {
   document.getElementById('modalProductCategory').textContent = product.category || 'Product';
   document.getElementById('modalProductTitle').textContent = safeTitle;
   document.getElementById('modalProductDescription').textContent = safeDesc;
-  document.getElementById('modalProductPrice').textContent = '$' + (Number(product.price) || 0).toFixed(2);
+  const priceEl = document.getElementById('modalProductPrice');
+  if (priceEl) {
+    const priceAmount = Number(product.price) || 0;
+    priceEl.dataset.amountUsd = priceAmount;
+    if (window.cartifyCurrency) {
+      window.cartifyCurrency.applyCurrencyToElements(priceEl);
+    } else {
+      priceEl.textContent = '$' + priceAmount.toFixed(2);
+    }
+  }
   
   if (ratingData && typeof ratingData.rate !== 'undefined') {
     document.getElementById('modalProductRating').textContent = Number(ratingData.rate).toFixed(1) + '/5';

@@ -215,7 +215,7 @@ include '../includes/header.php';
         $total = 0;
         foreach ($cart_items as $pid => $item):
           $name = htmlspecialchars($item['name'] ?? 'Unknown Product');
-          $price = $item['price'] ?? 0;
+          $price = (float)($item['price'] ?? 0);
           $qty = $item['quantity'] ?? 1;
           $image = $item['image'] ?? '';
           $subtotal = $price * $qty;
@@ -230,7 +230,7 @@ include '../includes/header.php';
               <span><strong><?= $name ?></strong></span>
             </div>
           </td>
-          <td><span class="text-muted">$<?= number_format($price, 2) ?></span></td>
+          <td><span class="text-muted currency-amount" data-amount-usd="<?= $price ?>">$<?= number_format($price, 2) ?></span></td>
           <td>
             <form method="post" class="quantity-control" onsubmit="return false;">
               <button type="button" class="btn btn-qty" onclick="updateQuantity(<?= $pid ?>, <?= $qty ?> - 1)">
@@ -242,7 +242,7 @@ include '../includes/header.php';
               </button>
             </form>
           </td>
-          <td><strong class="text-primary">$<?= number_format($subtotal, 2) ?></strong></td>
+          <td><strong class="text-primary currency-amount" data-amount-usd="<?= $subtotal ?>">$<?= number_format($subtotal, 2) ?></strong></td>
           <td>
             <form method="post" style="margin: 0;">
               <input type="hidden" name="product_id" value="<?= $pid ?>">
@@ -257,7 +257,7 @@ include '../includes/header.php';
       <tfoot>
         <tr>
           <td colspan="3" class="text-end"><strong style="font-size: 1.1rem;">Total:</strong></td>
-          <td colspan="2"><strong class="text-primary" style="font-size: 1.5rem;">$<?= number_format($total, 2) ?></strong></td>
+          <td colspan="2"><strong class="text-primary currency-amount" data-amount-usd="<?= $total ?>" style="font-size: 1.5rem;">$<?= number_format($total, 2) ?></strong></td>
         </tr>
       </tfoot>
     </table>
@@ -279,7 +279,7 @@ include '../includes/header.php';
         </div>
         <div class="modal-body">
           <p>Are you sure you want to complete this purchase?</p>
-          <p class="mb-0"><strong>Total: $<?= number_format($total, 2) ?></strong></p>
+          <p class="mb-0"><strong>Total: <span class="currency-amount" data-amount-usd="<?= $total ?>">$<?= number_format($total, 2) ?></span></strong></p>
           <p class="text-muted" style="font-size: 0.9rem; margin-top: 1rem;">You will receive a shipping confirmation email once your order is dispatched.</p>
         </div>
         <div class="modal-footer">
